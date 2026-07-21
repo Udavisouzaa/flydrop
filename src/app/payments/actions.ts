@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { getStripe, splitAmount } from "@/lib/stripe";
 import {
   initializePaymentSchema,
@@ -192,7 +193,23 @@ export async function initializePayment(formData: FormData) {
     transfer_group: `match_${match_id}`,
   });
 
-  await supabase.from("payments").insert({
+  // `payments` has no INSERT policy for regular authenticated users (see
+  // migration 0004) — writes are meant to happen server-side only. Every
+  // check above (session, requester-is-payer, traveler account active,
+  // Stripe intent created) already establishes trust, so this write uses
+  // the service-role admin client to bypass RLS deliberately.
+  let adminSupabase;
+  try {
+    adminSupabase = createAdminClient();
+  } catch {
+    redirect(
+      `/matches/${match_id}?error=${encodeURIComponent(
+        "Pagamentos ainda não estão configurados neste ambiente"
+      )}`
+    );
+  }
+
+  await adminSupabase!.from("payments").insert({
     match_id,
     payer_id: user.id,
     payee_id: parties!.travelerId,
@@ -221,8 +238,11 @@ export async function initializePayment(formData: FormData) {
  */
 export async function releasePayment(matchId: string) {
   try {
-    const supabase = await createClient();
-    const { data: payment } = await supabase
+    // Runs off the requester's session (called from confirmDropoff), but the
+    // `payments` UPDATE below has no authenticated-role policy — same
+    // service-role rationale as the insert in initializePayment().
+    const adminSupabase = createAdminClient();
+    const { data: payment } = await adminSupabase
       .from("payments")
       .select("*")
       .eq("match_id", matchId)
@@ -231,7 +251,7 @@ export async function releasePayment(matchId: string) {
 
     if (!payment) return;
 
-    const { data: travelerAccount } = await supabase
+    const { data: travelerAccount } = await adminSupabase
       .from("payment_accounts")
       .select("stripe_account_id")
       .eq("user_id", payment.payee_id)
@@ -252,7 +272,7 @@ export async function releasePayment(matchId: string) {
       source_transaction: payment.stripe_payment_intent_id ?? undefined,
     });
 
-    await supabase
+    await adminSupabase
       .from("payments")
       .update({
         status: "succeeded",
