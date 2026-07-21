@@ -11,7 +11,7 @@ import { SignUpModal } from '@/components/auth/SignUpModal';
 type LinkItem = {
     title: string;
     href: string;
-    icon: React.ElementType;
+    icon: React.ComponentType<{ className?: string }>;
 };
 
 const landingLinks: LinkItem[] = [

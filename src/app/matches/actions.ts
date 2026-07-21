@@ -3,6 +3,52 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
+import {
+  expressInterestSchema,
+  respondToMatchSchema,
+  setAgreedPriceSchema,
+} from "@/lib/validations/match";
+import { sendMessageSchema } from "@/lib/validations/message";
+import {
+  notifyMatchCreated,
+  notifyMatchResponded,
+  notifyNewMessage,
+  createNotification,
+} from "@/lib/utils/notifications";
+import { releasePayment } from "@/app/payments/actions";
+
+/** Resolve the traveler_id and requester_id for a match, joining trip+order. */
+async function getMatchParties(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  matchId: string
+) {
+  const { data } = await supabase
+    .from("matches")
+    .select(
+      "id, trip_id, order_id, trips(traveler_id, destination_city), orders(requester_id, destination_city)"
+    )
+    .eq("id", matchId)
+    .single();
+
+  if (!data) return null;
+
+  const trip = data.trips as unknown as {
+    traveler_id: string;
+    destination_city: string;
+  } | null;
+  const order = data.orders as unknown as {
+    requester_id: string;
+    destination_city: string;
+  } | null;
+
+  if (!trip || !order) return null;
+
+  return {
+    travelerId: trip.traveler_id,
+    requesterId: order.requester_id,
+    destinationCity: order.destination_city ?? trip.destination_city,
+  };
+}
 
 export async function expressInterest(formData: FormData) {
   const supabase = await createClient();
@@ -11,8 +57,20 @@ export async function expressInterest(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const trip_id = String(formData.get("trip_id"));
-  const order_id = String(formData.get("order_id"));
+  const parsed = expressInterestSchema.safeParse({
+    trip_id: formData.get("trip_id"),
+    order_id: formData.get("order_id"),
+  });
+
+  if (!parsed.success) {
+    redirect(
+      `/trips?error=${encodeURIComponent(
+        parsed.error.issues[0]?.message ?? "Dados inválidos"
+      )}`
+    );
+  }
+
+  const { trip_id, order_id } = parsed.data;
 
   const { data, error } = await supabase
     .from("matches")
@@ -28,6 +86,17 @@ export async function expressInterest(formData: FormData) {
     );
   }
 
+  const parties = await getMatchParties(supabase, data.id);
+  if (parties) {
+    const recipientId =
+      user.id === parties.travelerId ? parties.requesterId : parties.travelerId;
+    await notifyMatchCreated({
+      recipientId,
+      matchId: data.id,
+      destinationCity: parties.destinationCity,
+    });
+  }
+
   redirect(`/matches/${data.id}`);
 }
 
@@ -38,15 +107,146 @@ export async function respondToMatch(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const match_id = String(formData.get("match_id"));
-  const decision = String(formData.get("decision")); // 'accepted' | 'declined'
+  const parsed = respondToMatchSchema.safeParse({
+    match_id: formData.get("match_id"),
+    decision: formData.get("decision"),
+    declined_reason: formData.get("declined_reason") ?? "",
+  });
+
+  if (!parsed.success) return;
+
+  const { match_id, decision, declined_reason } = parsed.data;
+
+  const update: Record<string, unknown> = { status: decision };
+  if (decision === "accepted") update.accepted_at = new Date().toISOString();
+  if (decision === "declined" && declined_reason)
+    update.declined_reason = declined_reason;
+
+  await supabase.from("matches").update(update).eq("id", match_id);
+
+  const parties = await getMatchParties(supabase, match_id);
+  if (parties) {
+    const recipientId =
+      user.id === parties.travelerId ? parties.requesterId : parties.travelerId;
+    await notifyMatchResponded({
+      recipientId,
+      matchId: match_id,
+      accepted: decision === "accepted",
+    });
+  }
+
+  revalidatePath(`/matches/${match_id}`);
+}
+
+export async function setAgreedPrice(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const parsed = setAgreedPriceSchema.safeParse({
+    match_id: formData.get("match_id"),
+    agreed_price: formData.get("agreed_price"),
+  });
+
+  if (!parsed.success) return;
 
   await supabase
     .from("matches")
-    .update({ status: decision })
-    .eq("id", match_id);
+    .update({ agreed_price: parsed.data.agreed_price })
+    .eq("id", parsed.data.match_id);
 
-  revalidatePath(`/matches/${match_id}`);
+  revalidatePath(`/matches/${parsed.data.match_id}`);
+}
+
+/** Traveler confirms they've picked up the item from the requester. */
+export async function confirmPickup(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const matchId = String(formData.get("match_id") || "");
+  if (!matchId) return;
+
+  const parties = await getMatchParties(supabase, matchId);
+  if (!parties || parties.travelerId !== user.id) return; // only the traveler can confirm pickup
+
+  await supabase
+    .from("matches")
+    .update({
+      traveler_confirmed_pickup: true,
+      traveler_confirmed_pickup_at: new Date().toISOString(),
+    })
+    .eq("id", matchId);
+
+  await createNotification({
+    userId: parties.requesterId,
+    type: "pickup_confirmed",
+    title: "Item coletado pelo viajante",
+    message: "O viajante confirmou que pegou seu item. Acompanhe pelo chat.",
+    relatedMatchId: matchId,
+  });
+
+  revalidatePath(`/matches/${matchId}`);
+}
+
+/** Requester confirms they've received the item; may complete the match. */
+export async function confirmDropoff(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const matchId = String(formData.get("match_id") || "");
+  if (!matchId) return;
+
+  const parties = await getMatchParties(supabase, matchId);
+  if (!parties || parties.requesterId !== user.id) return; // only the requester can confirm dropoff
+
+  const { data: match } = await supabase
+    .from("matches")
+    .select("traveler_confirmed_pickup")
+    .eq("id", matchId)
+    .single();
+
+  const isComplete = Boolean(match?.traveler_confirmed_pickup);
+
+  await supabase
+    .from("matches")
+    .update({
+      requester_confirmed_dropoff: true,
+      requester_confirmed_dropoff_at: new Date().toISOString(),
+      ...(isComplete
+        ? { status: "completed", completed_at: new Date().toISOString() }
+        : {}),
+    })
+    .eq("id", matchId);
+
+  if (isComplete) {
+    // Bump completion stats for both parties (best-effort, ignore errors)
+    await supabase.rpc("increment_completion_stats", {
+      traveler_id: parties.travelerId,
+      requester_id: parties.requesterId,
+    });
+
+    // Release escrowed funds to the traveler now that delivery is confirmed
+    // by both parties (best-effort — see payments/actions.ts).
+    await releasePayment(matchId);
+
+    await createNotification({
+      userId: parties.travelerId,
+      type: "match_completed",
+      title: "Entrega confirmada!",
+      message: "O destinatário confirmou o recebimento. Deixe uma avaliação.",
+      relatedMatchId: matchId,
+    });
+  }
+
+  revalidatePath(`/matches/${matchId}`);
 }
 
 export async function sendMessage(formData: FormData) {
@@ -56,13 +256,34 @@ export async function sendMessage(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const match_id = String(formData.get("match_id"));
-  const content = String(formData.get("content") || "").trim();
-  if (!content) return;
+  const parsed = sendMessageSchema.safeParse({
+    match_id: formData.get("match_id"),
+    content: formData.get("content"),
+  });
+  if (!parsed.success) return;
+
+  const { match_id, content } = parsed.data;
 
   await supabase
     .from("messages")
     .insert({ match_id, sender_id: user.id, content });
+
+  const parties = await getMatchParties(supabase, match_id);
+  if (parties) {
+    const recipientId =
+      user.id === parties.travelerId ? parties.requesterId : parties.travelerId;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .single();
+
+    await notifyNewMessage({
+      recipientId,
+      matchId: match_id,
+      senderName: profile?.full_name ?? "Alguém",
+    });
+  }
 
   revalidatePath(`/matches/${match_id}`);
 }

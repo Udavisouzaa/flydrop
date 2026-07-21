@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { getCurrentUserWithProfile } from "@/utils/supabase/queries";
+import { getUnreadNotifications } from "@/lib/utils/notifications";
 import { MotionList, MotionListItem } from "@/components/motion";
 import type { Trip, Order, Match } from "@/types/database";
 
@@ -22,7 +23,7 @@ export default async function DashboardPage() {
 
   const supabase = await createClient();
 
-  const [{ data: trips }, { data: orders }, { data: matches }] =
+  const [{ data: trips }, { data: orders }, { data: matches }, notifications] =
     await Promise.all([
       supabase
         .from("trips")
@@ -38,6 +39,9 @@ export default async function DashboardPage() {
         .from("matches")
         .select("*, trips(*), orders(*)")
         .order("created_at", { ascending: false }),
+      // Fails gracefully (returns []) until migration 0005 creates the
+      // notifications table.
+      getUnreadNotifications(user.id, 5),
     ]);
 
   const myTrips = (trips ?? []) as Trip[];
@@ -51,6 +55,37 @@ export default async function DashboardPage() {
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
       <h1 className="text-2xl font-bold">Meu painel</h1>
+
+      {notifications.length > 0 && (
+        <section className="mt-6 rounded-2xl border border-orange-500/30 bg-orange-500/5 p-4">
+          <h2 className="text-sm font-semibold text-orange-600 dark:text-orange-400">
+            Notificações
+          </h2>
+          <ul className="mt-2 space-y-2">
+            {notifications.map((n) => (
+              <li key={n.id} className="text-sm">
+                <Link
+                  href={
+                    n.related_match_id
+                      ? `/matches/${n.related_match_id}`
+                      : n.related_order_id
+                      ? `/orders/${n.related_order_id}`
+                      : n.related_trip_id
+                      ? `/trips/${n.related_trip_id}`
+                      : "/dashboard"
+                  }
+                  className="hover:text-orange-500"
+                >
+                  <span className="font-medium">{n.title}</span>
+                  {n.message && (
+                    <span className="text-neutral-500"> — {n.message}</span>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="mt-10">
         <div className="flex items-center justify-between">

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
+import { updateProfileSchema } from "@/lib/validations/profile";
 
 export async function updateProfile(formData: FormData) {
   const supabase = await createClient();
@@ -12,14 +13,27 @@ export async function updateProfile(formData: FormData) {
 
   if (!user) redirect("/login");
 
-  const full_name = String(formData.get("full_name"));
-  const phone = String(formData.get("phone"));
-  const bio = String(formData.get("bio"));
+  const parsed = updateProfileSchema.safeParse({
+    full_name: formData.get("full_name"),
+    phone: formData.get("phone") ?? "",
+    bio: formData.get("bio") ?? "",
+  });
 
-  await supabase
+  if (!parsed.success) {
+    const message = parsed.error.issues[0]?.message ?? "Dados inválidos";
+    redirect(`/profile?error=${encodeURIComponent(message)}`);
+  }
+
+  const v = parsed.data;
+
+  const { error } = await supabase
     .from("profiles")
-    .update({ full_name, phone, bio })
+    .update({ full_name: v.full_name, phone: v.phone || null, bio: v.bio || null })
     .eq("id", user.id);
+
+  if (error) {
+    redirect(`/profile?error=${encodeURIComponent(error.message)}`);
+  }
 
   revalidatePath("/profile");
   revalidatePath("/dashboard");

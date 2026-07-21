@@ -88,7 +88,7 @@ export default function Suitcase3D({ progress }: SuitcaseProps) {
     mainGroupRef.current.position.x += (targetX - mainGroupRef.current.position.x) * 0.1;
     
     // A mala flutua muito pouco quando parada (p < 0.05)
-    let floatMultiplier = p < 0.05 ? 0.02 : 0.1;
+    const floatMultiplier = p < 0.05 ? 0.02 : 0.1;
     let baseY = Math.sin(time) * floatMultiplier - (p * 1.5);
     
     // "Para quem é" (personas) -> mala mais para cima
