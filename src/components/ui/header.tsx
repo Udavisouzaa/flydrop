@@ -172,7 +172,9 @@ function MobileMenu({ open, children, className, ...props }: MobileMenuProps) {
 }
 
 function useScroll(threshold: number) {
-    const [scrolled, setScrolled] = React.useState(false);
+    const [scrolled, setScrolled] = React.useState(
+        () => typeof window !== 'undefined' && window.scrollY > threshold,
+    );
 
     const onScroll = React.useCallback(() => {
         setScrolled(window.scrollY > threshold);
@@ -181,10 +183,6 @@ function useScroll(threshold: number) {
     React.useEffect(() => {
         window.addEventListener('scroll', onScroll, { passive: true });
         return () => window.removeEventListener('scroll', onScroll);
-    }, [onScroll]);
-
-    React.useEffect(() => {
-        onScroll();
     }, [onScroll]);
 
     return scrolled;
