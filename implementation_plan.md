@@ -1,5 +1,68 @@
 # FlyDrop Backend Implementation Plan
 
+> ## ⚠️ LEIA ANTES DE USAR ESTE DOCUMENTO
+>
+> Este plano foi escrito em 2026-07-20, **antes** de duas mudanças grandes de rumo.
+> Partes dele descrevem uma arquitetura que **não existe mais**. Atualizado em 2026-07-26.
+>
+> ### O que mudou
+>
+> **1. Pagamentos: Stripe Connect + escrow → Pix via Asaas (taxa de conexão).**
+> Não existe escrow, não existe split de pagamento, não existe conta Stripe Connect.
+> O modelo atual está descrito na seção 1.4 (reescrita). Toda menção a Stripe,
+> Payment Intent, transfer ou escrow neste documento é **obsoleta** — em especial
+> a seção 5.1 e a 6.7.
+>
+> **2. Drizzle ORM é só tipagem, não camada de queries.**
+> O plano (seção 1.2) sugere usar Drizzle para acessar o banco. Na prática as
+> queries são feitas pelo **cliente Supabase** (`createClient`) em ~15 arquivos, e
+> as migrations são **SQL puro** em `supabase/migrations/`. Drizzle aparece só em
+> `src/db/schema.ts` e `src/db/index.ts`. Os pseudocódigos com `db.select().from()`
+> ao longo deste documento não refletem o código real.
+>
+> ### ✅ 3. Descompasso de migrations — CORRIGIDO em 2026-07-26
+>
+> Havia um problema grave: o banco de produção tinha **15 migrations aplicadas**
+> e o repositório versionava apenas **8 arquivos**. Oito existiam só em produção,
+> incluindo o **schema base inteiro** e **todo o modelo Pix**. Quem clonasse o
+> repositório e criasse um Supabase novo obteria um banco quebrado.
+>
+> As oito foram recuperadas de `supabase_migrations.schema_migrations` e agora
+> estão versionadas. Os arquivos foram renomeados para o padrão de timestamp do
+> CLI (`<version>_<nome>.sql`), de modo que os prefixos batem exatamente com o
+> que o banco registra como aplicado.
+>
+> **Estado atual:** 16 arquivos — as 15 aplicadas em produção mais
+> `20260726000000_0008_derive_completion_stats.sql`, que segue **pendente**
+> (as duas falhas que ela corrige continuam abertas em produção).
+>
+> **Para um dev novo subir um banco do zero:**
+> ```bash
+> npx supabase link --project-ref mmylufjhugbhunofqtzp
+> npx supabase db push
+> ```
+>
+> ⚠️ Daqui pra frente, toda mudança de schema deve virar arquivo em
+> `supabase/migrations/`. Aplicar SQL direto pelo painel do Supabase é o que
+> causou esse descompasso.
+>
+> ### O que continua válido
+>
+> Seção 3 (RLS) e seção 4 (matching), e a estrutura geral. A seção 2 (modelagem)
+> descreve as tabelas certas, mas várias definições estão desatualizadas — confira
+> sempre contra o banco real, não contra este documento nem contra a pasta de
+> migrations.
+>
+> ### Fonte da verdade
+>
+> | Assunto | Onde olhar |
+> |---|---|
+> | Schema do banco | `supabase/migrations/*.sql` (8 migrations) |
+> | Pagamento Pix | `src/lib/asaas.ts`, `src/app/api/connection/checkout/route.ts` |
+> | Webhook | `src/app/api/webhooks/asaas/route.ts` |
+> | Taxa de conexão | `calculateConnectionFee` em `src/app/matches/actions.ts` |
+> | Perguntas em aberto do produto | `VALIDACAO.md` |
+
 ## Executive Summary
 
 FlyDrop é uma plataforma de marketplace para conectar pessoas que precisam despachar itens urgentes (documentos, eletrônicos, itens esquecidos) em voos nacionais com viajantes que possuem espaço sobrando na bagagem. Este documento detalha a arquitetura backend necessária para operacionalizar a plataforma de ponta a ponta.
@@ -60,20 +123,60 @@ FlyDrop é uma plataforma de marketplace para conectar pessoas que precisam desp
 
 ---
 
-### 1.4 Pagamentos: Stripe Connect
-**Decisão:** Stripe Connect (com escrow)  
-**Justificativa:**
-- Conectar múltiplas contas (traveler recebe, platform toma comissão)
-- Escrow automático (retém pagamento até confirmação)
-- Ideal para marketplaces
-- Compliance com regulações (1099 automático)
-- Webhooks confiáveis
+### 1.4 Pagamentos: Pix via Asaas — taxa de conexão
 
-**Fluxo:**
-1. Usuário cria conta Stripe Connect durante onboarding
-2. Quando Match é aceito → criar Payment Intent com escrow
-3. Cliente paga → dinheiro fica com Stripe (retido)
-4. Após entrega confirmada → liberar para traveler (menos comissão da plataforma)
+**Decisão atual (implementada):** cobrança única de **taxa de conexão** via Pix, usando Asaas.
+**Substituiu:** Stripe Connect com escrow (commit `adfe343`).
+
+**Por que mudou:** o modelo de escrow exigia intermediar o valor do frete entre as
+partes — o que traz custo de compliance, risco de disputa e responsabilidade sobre
+a entrega. O modelo atual é mais simples: a plataforma **não toca no dinheiro do
+frete**. Ela cobra apenas para revelar o contato entre as partes; o combinado
+financeiro entre viajante e solicitante acontece fora do app.
+
+**Fluxo real:**
+
+```
+1. Match criado
+   └─ connection_fee é calculada e gravada na linha do match
+      (calculateConnectionFee em src/app/matches/actions.ts)
+
+2. Match aceito (status = 'accepted')
+   └─ Contato entre as partes ainda está oculto
+
+3. Qualquer uma das duas partes clica em desbloquear
+   └─ POST /api/connection/checkout
+   └─ Valida: usuário é parte do match, match aceito, ainda não desbloqueado
+   └─ Cria cobrança Pix no Asaas (ou reaproveita uma pendente ainda válida)
+   └─ Retorna QR code / copia-e-cola
+
+4. Pagamento confirmado
+   └─ Webhook POST /api/webhooks/asaas
+   └─ Valida token do webhook (verifyWebhookToken)
+   └─ Idempotente: Asaas envia PAYMENT_CONFIRMED *e* PAYMENT_RECEIVED
+   └─ Grava unlocked_at no match → contato liberado
+
+5. Falha / estorno
+   └─ ASAAS_FAILED_EVENTS → payment vira 'failed' ou 'refunded'
+```
+
+**Regra da taxa** (`src/app/matches/actions.ts`):
+
+| Parâmetro | Valor |
+|---|---|
+| Percentual | 10% do orçamento do pedido |
+| Mínimo | R$ 4,90 |
+| Máximo | R$ 29,90 |
+| Padrão (sem orçamento) | R$ 9,90 |
+
+⚠️ **Esses números ainda não foram validados com usuários reais.** São uma hipótese.
+Ver `VALIDACAO.md` — quatro perguntas de produto seguem em aberto, incluindo
+**quem deve pagar a taxa**. Hoje o código aceita que qualquer uma das duas partes
+pague (quem clicar primeiro). Isso é uma decisão em aberto, não uma decisão tomada.
+
+**Variáveis de ambiente:** `ASAAS_API_KEY`, `ASAAS_ENV`, `ASAAS_WEBHOOK_TOKEN`.
+Se não estiverem configuradas, as rotas de pagamento respondem `501` em vez de quebrar
+(`isAsaasConfigured` em `src/lib/asaas.ts`).
 
 ---
 
@@ -179,6 +282,12 @@ CREATE INDEX idx_profiles_kyc_verified ON profiles(kyc_verified);
 ---
 
 #### 2.2.2 `payment_accounts`
+
+> ⚠️ **Tabela órfã.** Foi criada na migration 0001 e a tabela existe no banco, mas
+> ficou sem uso após o abandono do Stripe. Nenhum código do app lê ou escreve nela.
+> No modelo Pix atual a plataforma não repassa dinheiro, então não precisa guardar
+> conta de recebimento de ninguém. Candidata a remoção.
+
 Armazena informações do Stripe Connect de cada usuário.
 
 ```sql
@@ -415,6 +524,16 @@ CREATE UNIQUE INDEX idx_reviews_unique_per_match ON reviews(match_id, reviewer_i
 ---
 
 #### 2.2.8 `payments`
+
+> ⚠️ **Definição abaixo está desatualizada.** A tabela real ganhou colunas do Pix
+> (`psp_charge_id`, `pix_qr_payload`, `pix_expires_at`) numa migration que **não está
+> versionada neste repositório** — ver aviso no topo do documento sobre o descompasso
+> entre `supabase/migrations/` e o banco de produção.
+>
+> As colunas `stripe_payment_intent_id`, `stripe_transfer_id`, `amount_to_traveler`
+> e `amount_commission` ainda existem no banco mas são resquício do modelo de escrow.
+> No modelo atual só há um valor: a taxa de conexão.
+
 Histórico de transações (integrado com Stripe).
 
 ```sql
@@ -572,7 +691,15 @@ score = (
 
 ## 5. Segurança e Pagamentos
 
-### 5.1 Fluxo de Pagamento com Stripe Connect
+### 5.1 ~~Fluxo de Pagamento com Stripe Connect~~ (OBSOLETO)
+
+> 🚫 **Nada nesta seção 5.1 foi implementado e nada aqui deve ser implementado.**
+> Descreve o modelo de escrow que foi abandonado. Não existe Stripe no projeto,
+> não existe `payment_accounts` com `stripe_account_id` em uso, não existe
+> comissão sobre o frete, não existe reembolso automático em 7 dias.
+>
+> O fluxo real de pagamento está na **seção 1.4**. Mantido abaixo apenas como
+> registro histórico da decisão que foi revertida.
 
 ```
 1. Onboarding
@@ -715,10 +842,18 @@ export async function confirmPayment(paymentIntentId: string) {
 - Real-time via Supabase Realtime (já implementado)
 
 ### 6.7 Pagamentos
-- `POST /api/payments/init` (iniciar payment intent)
-- `POST /api/payments/confirm` (confirmar após cliente pagar)
-- `GET /api/payments/:id` (status)
-- `POST /api/payments/:id/refund` (reembolsar)
+
+🚫 **Endpoints planejados abaixo NÃO existem** (eram do modelo Stripe/escrow):
+
+- ~~`POST /api/payments/init`~~ • ~~`POST /api/payments/confirm`~~
+- ~~`GET /api/payments/:id`~~ • ~~`POST /api/payments/:id/refund`~~
+
+✅ **Endpoints que existem de verdade:**
+
+- `POST /api/connection/checkout` — cria (ou reaproveita) cobrança Pix da taxa de
+  conexão de um match. Responde `501` se o Asaas não estiver configurado.
+- `POST /api/webhooks/asaas` — recebe confirmação/falha/estorno do Asaas.
+  Autenticado por token, idempotente.
 
 ### 6.8 Reviews
 - `POST /api/reviews` (deixar review)
@@ -798,38 +933,58 @@ src/
 
 ## 8. Implementação por Fases
 
-### Fase 1: Fundação Backend (Semanas 1-2)
-- [ ] Instalar Drizzle ORM + migrations
-- [ ] Reescrever schema em Drizzle
-- [ ] Implementar RLS policies
-- [ ] Setup Stripe Connect
-- [ ] Validações com Zod
-- [ ] Tests unitários
+> Status revisado em 2026-07-26 contra o código real. As datas originais
+> ("Semanas 1-7") não têm mais relação com o calendário — ignore-as.
 
-### Fase 2: APIs (Semanas 3-4)
-- [ ] Routes: CRUD trips, orders
-- [ ] Algoritmo de matching
-- [ ] Payment flow (intent + confirm)
-- [ ] Webhook handlers (Stripe)
-- [ ] Rate limiting
+### Fase 1: Fundação Backend — ✅ concluída (com desvios)
+- [x] Migrations — **SQL puro** em `supabase/migrations/`, não Drizzle
+- [x] Schema em Drizzle — existe em `src/db/schema.ts`, mas usado só como tipagem
+- [x] RLS policies — implementadas; ver migrations 0007 e 0008
+- [x] ~~Setup Stripe Connect~~ — **descartado**, virou Pix/Asaas (ver 1.4)
+- [x] Validações com Zod — `src/lib/validations/`
+- [ ] Testes unitários — **não existe nenhum teste no projeto**
 
-### Fase 3: Notificações & Real-time (Semana 5)
-- [ ] Sistema de notificações
-- [ ] Push notifications (Pusher/FCM)
-- [ ] Rastreamento de delivery
-- [ ] Confirmações
+### Fase 2: APIs — ✅ concluída
+- [x] CRUD trips, orders — server actions em `src/app/*/actions.ts`
+- [x] Algoritmo de matching — `src/app/matches/actions.ts`
+- [x] Fluxo de pagamento — Pix/Asaas, não intent+confirm
+- [x] Webhook handler — `/api/webhooks/asaas`, idempotente
+- [ ] Rate limiting — **não implementado**
 
-### Fase 4: Testes & Compliance (Semana 6)
-- [ ] Testes de integração
-- [ ] Segurança (OWASP)
-- [ ] KYC flow
-- [ ] Documentação API (Swagger/OpenAPI)
+### Fase 3: Notificações & Real-time — ✅ majoritariamente concluída
+- [x] Sistema de notificações — migration 0005
+- [x] Chat em tempo real — `src/components/Chat.tsx` (Supabase Realtime)
+- [x] Confirmações de entrega — `confirmDropoff`
+- [ ] Push notifications — não implementado
 
-### Fase 5: Otimizações & Deploy (Semana 7)
-- [ ] Caching (Redis)
-- [ ] CDN para assets
-- [ ] Monitoring (Sentry)
-- [ ] CI/CD (GitHub Actions)
+### Fase 4: Testes & Compliance — 🔴 pendente
+- [ ] Testes de integração — nenhum teste existe
+- [ ] **Migration 0008 aplicada em produção** — está commitada mas NÃO aplicada.
+      Fecha duas falhas reais: contadores infláveis e, mais grave, `kyc_verified`
+      editável pelo próprio usuário (dá pra forjar selo de verificado)
+- [ ] KYC flow — coluna existe, fluxo de verificação não
+- [ ] Documentação de API
+
+### Fase 5: Otimizações & Deploy — parcial
+- [x] Deploy — Vercel, já no ar
+- [ ] Monitoring (Sentry) — não configurado
+- [ ] CI/CD (GitHub Actions) — não configurado
+- [ ] Caching / CDN — não priorizado
+
+---
+
+### ⚠️ O gargalo real não está nesta lista
+
+O produto está construído: 12 páginas, fluxo ponta a ponta, pagamento funcionando.
+O que não existe é **evidência de que alguém quer isso**.
+
+`VALIDACAO.md` marca **0 de 30 conversas** realizadas. Quatro perguntas que definem
+o produto seguem sem resposta — inclusive quem paga a taxa e se o patamar de preço
+faz sentido. Continuar adicionando funcionalidade antes de responder isso é
+construir em cima de uma hipótese não testada.
+
+**Antes de pegar qualquer item das fases acima, considere rodar as 30 conversas.**
+Elas não exigem escrever uma linha de código.
 
 ---
 

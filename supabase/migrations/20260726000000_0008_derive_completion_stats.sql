@@ -13,12 +13,17 @@
 --
 -- PART B — the same columns are directly writable anyway.
 --   The RLS policy "Users can update their own profile" is USING (auth.uid() = id)
---   with no WITH CHECK and no column restriction, and `authenticated` holds
---   column-level UPDATE on every reputation column. So Part A alone is
---   insufficient: a user can skip the RPC entirely and PATCH /rest/v1/profiles
---   to set trips_completed, avg_rating, total_reviews — and kyc_verified, which
---   is a stronger trust signal than any counter. All six are exposed publicly
---   through the profiles_public view.
+--   with no column restriction, and `authenticated` holds UPDATE on every
+--   reputation column. So Part A alone is insufficient: a user can skip the RPC
+--   entirely and PATCH /rest/v1/profiles to set trips_completed, avg_rating,
+--   total_reviews — and kyc_verified, which is a stronger trust signal than any
+--   counter. Confirmed 2026-07-26: profiles_public exposes avg_rating,
+--   total_reviews, kyc_verified, trips_completed and orders_completed to anon.
+--
+--   Note the missing WITH CHECK is *not* itself the hole: for UPDATE policies
+--   Postgres reuses USING as the check when WITH CHECK is omitted, so a user
+--   still cannot reassign their row to another id. The hole is purely the
+--   absence of a column restriction.
 --
 -- Deploy order (each intermediate state is correct):
 --   1. this migration      — recompute + trigger + column lockdown; RPC kept working
@@ -152,10 +157,23 @@ WHERE
 -- PART B — reputation/KYC columns are server-maintained, never client-written
 -- ===========================================================================
 
--- Surgical column-level revoke. The app only ever writes full_name, phone and
--- bio from a user session (src/app/profile/actions.ts), so nothing legitimate
--- loses access. Functions owned by postgres (recalc_completion_stats,
--- handle_new_review) are unaffected by column grants.
+-- A column-level REVOKE alone is NOT enough here. Postgres treats table-level
+-- and column-level UPDATE as separate grants, and revoking a column does not
+-- subtract from a table-level grant. Supabase's bootstrap does
+-- `GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated`, so the
+-- likely live state is a *table-level* UPDATE — against which
+-- `REVOKE UPDATE (kyc_verified) ...` is a silent no-op. (information_schema.
+-- column_privileges expands a table-level grant into one row per column, so an
+-- inspection there cannot tell the two apart.)
+--
+-- So: drop the table-level grant, drop any column-level grants on the
+-- protected columns, then re-grant only the columns a user session may write.
+-- The app writes full_name, phone and bio (src/app/profile/actions.ts);
+-- avatar_url is included as the one other non-sensitive user-owned column.
+-- service_role is untouched, and functions owned by postgres
+-- (recalc_completion_stats, handle_new_review) do not consult column grants.
+REVOKE UPDATE ON public.profiles FROM anon, authenticated;
+
 REVOKE UPDATE (
   trips_completed,
   orders_completed,
@@ -165,16 +183,24 @@ REVOKE UPDATE (
   kyc_verification_date
 ) ON public.profiles FROM anon, authenticated;
 
--- Defense in depth: a blanket `GRANT ALL ON ALL TABLES ... TO authenticated`
--- (common in Supabase setup scripts and some migration tooling) would silently
--- undo the REVOKE above. The trigger keeps holding in that case. Same shape as
--- the existing trg_guard_unlock_fields on matches, but keyed on current_user:
--- a direct PostgREST write runs as `authenticated`/`anon`, while SECURITY
--- DEFINER functions run as their owner (postgres) and pass through.
+GRANT UPDATE (full_name, phone, avatar_url, bio) ON public.profiles TO authenticated;
+
+-- Defense in depth: a later blanket `GRANT ALL ON ALL TABLES ... TO
+-- authenticated` (common in Supabase setup scripts and some migration tooling)
+-- would silently undo the grants above. The trigger keeps holding in that case.
+-- Same shape as the existing trg_guard_unlock_fields on matches, keyed on
+-- current_user: a direct PostgREST write runs as `authenticated`/`anon`, while
+-- SECURITY DEFINER functions run as their owner (postgres) and pass through.
+--
+-- This function must stay SECURITY INVOKER. Inside a SECURITY DEFINER function
+-- current_user is the function *owner*, so the check below would compare
+-- 'postgres' against ('anon','authenticated'), never match, and the trigger
+-- would be silently dead. It needs no elevated privileges: it only reads
+-- OLD/NEW and raises. (session_user is not an option either — PostgREST
+-- connects as `authenticator` and SET ROLEs, which moves current_user only.)
 CREATE OR REPLACE FUNCTION public.guard_profile_reputation_fields()
 RETURNS trigger
 LANGUAGE plpgsql
-SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 BEGIN
@@ -192,6 +218,8 @@ BEGIN
 END;
 $$;
 
+-- Safe even though the function is SECURITY INVOKER: Postgres checks EXECUTE on
+-- a trigger function at CREATE TRIGGER time, not on each fire.
 REVOKE ALL ON FUNCTION public.guard_profile_reputation_fields() FROM PUBLIC, anon, authenticated;
 
 DROP TRIGGER IF EXISTS trg_guard_profile_reputation_fields ON public.profiles;
