@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import type { Order } from "@/types/database";
+import { cityMatchesSearch } from "@/lib/utils/cities";
 
 export default async function OrdersPage({
   searchParams,
@@ -10,17 +11,21 @@ export default async function OrdersPage({
   const { origin, destination } = await searchParams;
   const supabase = await createClient();
 
-  let query = supabase
+  const query = supabase
     .from("orders")
     .select("*")
     .eq("status", "open")
     .order("created_at", { ascending: false });
 
-  if (origin) query = query.ilike("origin_city", `%${origin}%`);
-  if (destination) query = query.ilike("destination_city", `%${destination}%`);
-
   const { data } = await query;
-  const orders = (data ?? []) as Order[];
+
+  // Same reason as /trips: canonicalize before comparing, so "floripa" and
+  // "Florianópolis" are treated as the same city.
+  const orders = ((data ?? []) as Order[]).filter(
+    (o) =>
+      cityMatchesSearch(o.origin_city, origin) &&
+      cityMatchesSearch(o.destination_city, destination)
+  );
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">

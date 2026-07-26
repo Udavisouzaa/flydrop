@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { citiesMatch } from "@/lib/utils/cities";
 
 export const orderCategoryEnum = z.enum([
   "electronics",
@@ -36,7 +37,8 @@ export const createOrderSchema = z
     fragile: z.coerce.boolean().optional(),
   })
   .refine(
-    (data) => data.origin_city.toLowerCase() !== data.destination_city.toLowerCase(),
+    // Canonical comparison: "GRU" and "Congonhas" are both São Paulo.
+    (data) => !citiesMatch(data.origin_city, data.destination_city),
     {
       message: "Origem e destino não podem ser a mesma cidade",
       path: ["destination_city"],

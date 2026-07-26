@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import type { Trip } from "@/types/database";
+import { cityMatchesSearch } from "@/lib/utils/cities";
 
 export default async function TripsPage({
   searchParams,
@@ -10,17 +11,22 @@ export default async function TripsPage({
   const { origin, destination } = await searchParams;
   const supabase = await createClient();
 
-  let query = supabase
+  const query = supabase
     .from("trips")
     .select("*")
     .eq("status", "active")
     .order("departure_date", { ascending: true });
 
-  if (origin) query = query.ilike("origin_city", `%${origin}%`);
-  if (destination) query = query.ilike("destination_city", `%${destination}%`);
-
   const { data } = await query;
-  const trips = (data ?? []) as Trip[];
+
+  // Cities are free text, so "floripa" and "Florianópolis" are different
+  // strings for the same place. Filtering happens after canonicalization
+  // rather than as an `ilike` in SQL.
+  const trips = ((data ?? []) as Trip[]).filter(
+    (t) =>
+      cityMatchesSearch(t.origin_city, origin) &&
+      cityMatchesSearch(t.destination_city, destination)
+  );
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">

@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/utils/supabase/server";
 import type { Order, Trip } from "@/types/database";
+import { citiesMatch } from "./cities";
 
 const DEFAULT_SEARCH_WINDOW_DAYS = 14;
 
@@ -10,10 +11,6 @@ export interface ScoredTrip extends Trip {
 
 export interface ScoredOrder extends Order {
   matchScore: number;
-}
-
-function normalizeCity(city: string) {
-  return city.trim().toLowerCase();
 }
 
 function daysBetween(a: Date, b: Date) {
@@ -89,12 +86,13 @@ export async function suggestTripsForOrder(
         : windowDays)
   );
 
+  // City is free text ("floripa" vs "florianopolis" vs "congonhas"), so the
+  // route filter can't be an exact `ilike` in SQL — it runs in memory below
+  // via canonicalCity(). Status and dates still narrow the query server-side.
   let query = supabase
     .from("trips")
     .select("*")
     .eq("status", "active")
-    .ilike("origin_city", order.origin_city)
-    .ilike("destination_city", order.destination_city)
     .gte("departure_date", today.toISOString().slice(0, 10));
 
   if (order.needed_by_date) {
@@ -103,15 +101,20 @@ export async function suggestTripsForOrder(
     query = query.lte("departure_date", windowEnd.toISOString().slice(0, 10));
   }
 
-  const { data: trips, error: tripsError } = await query;
-  if (tripsError || !trips) return [];
+  const { data: allTrips, error: tripsError } = await query;
+  if (tripsError || !allTrips) return [];
+
+  const trips = (allTrips as Trip[]).filter(
+    (t) =>
+      citiesMatch(t.origin_city, order.origin_city) &&
+      citiesMatch(t.destination_city, order.destination_city)
+  );
+  if (trips.length === 0) return [];
 
   // profiles_public is a view, so PostgREST can't embed it via a FK-based
   // join like `profiles!trips_traveler_id_fkey(...)`; fetch ratings
   // separately and merge in memory instead.
-  const travelerIds = Array.from(
-    new Set((trips as Trip[]).map((t) => t.traveler_id))
-  );
+  const travelerIds = Array.from(new Set(trips.map((t) => t.traveler_id)));
   const { data: travelerProfiles } = await supabase
     .from("profiles_public")
     .select("id, avg_rating")
@@ -120,7 +123,7 @@ export async function suggestTripsForOrder(
     (travelerProfiles ?? []).map((p) => [p.id, p.avg_rating as number | null])
   );
 
-  const scored = (trips as Trip[])
+  const scored = trips
     .filter(
       (t) =>
         !order.weight_kg ||
@@ -161,12 +164,9 @@ export async function suggestOrdersForTrip(
 
   if (tripError || !trip) return [];
 
-  const query = supabase
-    .from("orders")
-    .select("*")
-    .eq("status", "open")
-    .ilike("origin_city", trip.origin_city)
-    .ilike("destination_city", trip.destination_city);
+  // Same reason as suggestTripsForOrder: the route filter is canonical, so it
+  // can't run as SQL against the free-text columns.
+  const query = supabase.from("orders").select("*").eq("status", "open");
 
   const { data: orders, error: ordersError } = await query;
   if (ordersError || !orders) return [];
@@ -174,6 +174,8 @@ export async function suggestOrdersForTrip(
   const scored = (orders as Order[])
     .filter(
       (o) =>
+        citiesMatch(o.origin_city, trip.origin_city) &&
+        citiesMatch(o.destination_city, trip.destination_city) &&
         (!o.needed_by_date || o.needed_by_date >= trip.departure_date) &&
         (!o.weight_kg ||
           !trip.available_space_kg ||
@@ -189,10 +191,4 @@ export async function suggestOrdersForTrip(
   return scored;
 }
 
-/**
- * Case-insensitive city comparison helper, exported for reuse in
- * server actions / search filters.
- */
-export function citiesMatch(a: string, b: string) {
-  return normalizeCity(a) === normalizeCity(b);
-}
+export { citiesMatch, canonicalCity } from "./cities";
