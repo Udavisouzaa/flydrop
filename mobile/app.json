@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "LevAí",
+    "slug": "levai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "levai",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "plugins": ["expo-router"],
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
