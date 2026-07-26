@@ -4,7 +4,8 @@ import { getCurrentUserWithProfile } from "@/utils/supabase/queries";
 import { respondToMatch, confirmPickup, confirmDropoff } from "../actions";
 import { createReview } from "../reviews";
 import Chat from "@/components/Chat";
-import type { Match, Trip, Order, Profile, Message } from "@/types/database";
+import ConnectionPaywall from "@/components/ConnectionPaywall";
+import type { Match, Trip, Order, ProfilePublic, Message } from "@/types/database";
 
 const statusLabel: Record<string, string> = {
   pending: "Pendente",
@@ -37,23 +38,39 @@ export default async function MatchDetailPage({
   const m = match as Match & {
     trips: Trip;
     orders: Order;
-    // Present once migration 0002 is applied; optional until then.
-    traveler_confirmed_pickup?: boolean;
-    requester_confirmed_dropoff?: boolean;
   };
 
+  // Cross-user profile lookups must go through profiles_public: the base
+  // `profiles` table only allows selecting your own row under RLS now.
   const [{ data: traveler }, { data: requester }] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", m.trips.traveler_id).single(),
-    supabase.from("profiles").select("*").eq("id", m.orders.requester_id).single(),
+    supabase
+      .from("profiles_public")
+      .select("*")
+      .eq("id", m.trips.traveler_id)
+      .single(),
+    supabase
+      .from("profiles_public")
+      .select("*")
+      .eq("id", m.orders.requester_id)
+      .single(),
   ]);
 
   const isTraveler = user.id === m.trips.traveler_id;
   const isRequester = user.id === m.orders.requester_id;
   const otherProfile = isTraveler
-    ? (requester as Profile | null)
-    : (traveler as Profile | null);
+    ? (requester as ProfilePublic | null)
+    : (traveler as ProfilePublic | null);
   const otherUserId = isTraveler ? m.orders.requester_id : m.trips.traveler_id;
   const canRespond = m.status === "pending" && user.id !== m.created_by;
+
+  const isUnlocked = Boolean(m.unlocked_at);
+  let unlockedContact: { full_name: string | null; phone: string | null } | null = null;
+  if (isUnlocked && m.status === "accepted") {
+    const { data: contactRows } = await supabase.rpc("get_unlocked_contact", {
+      p_match_id: m.id,
+    });
+    unlockedContact = contactRows?.[0] ?? null;
+  }
 
   const { data: messagesData } = await supabase
     .from("messages")
@@ -78,8 +95,19 @@ export default async function MatchDetailPage({
         {m.trips.origin_city} → {m.trips.destination_city} · partida em{" "}
         {new Date(m.trips.departure_date).toLocaleDateString("pt-BR")}
       </p>
-      <p className="mt-1 text-sm text-neutral-500">
-        Com: {otherProfile?.full_name ?? "Usuário Flydrop"}
+      <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-neutral-500">
+        <span>Com: {otherProfile?.full_name ?? "Usuário Flydrop"}</span>
+        {otherProfile?.avg_rating != null && (
+          <span>
+            ⭐ {Number(otherProfile.avg_rating).toFixed(1)}
+            {otherProfile.total_reviews ? ` (${otherProfile.total_reviews})` : ""}
+          </span>
+        )}
+        {otherProfile?.kyc_verified && (
+          <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">
+            ✓ Identidade verificada
+          </span>
+        )}
       </p>
       <span className="mt-3 inline-block rounded-full bg-black/5 px-3 py-1 text-xs font-medium dark:bg-white/10">
         {statusLabel[m.status]}
@@ -119,11 +147,42 @@ export default async function MatchDetailPage({
       {m.status === "accepted" && (
         <div className="mt-8">
           <h2 className="mb-3 font-semibold">Combine os detalhes</h2>
-          <Chat matchId={m.id} currentUserId={user.id} initialMessages={messages} />
-          <p className="mt-3 text-xs text-neutral-500">
-            Prefira combinar a entrega em locais públicos e seguros, como
-            aeroportos ou shoppings.
-          </p>
+
+          {isUnlocked ? (
+            <>
+              <div className="mb-4 rounded-2xl border border-green-500/20 bg-green-500/5 p-4">
+                <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                  Contato liberado
+                </p>
+                <p className="mt-1 text-sm">
+                  {unlockedContact?.full_name ?? otherProfile?.full_name} ·{" "}
+                  {unlockedContact?.phone ? (
+                    <a
+                      href={`https://wa.me/${unlockedContact.phone.replace(/\D/g, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-orange-500 hover:underline"
+                    >
+                      {unlockedContact.phone}
+                    </a>
+                  ) : (
+                    "Telefone não informado"
+                  )}
+                </p>
+              </div>
+              <Chat matchId={m.id} currentUserId={user.id} initialMessages={messages} />
+              <p className="mt-3 text-xs text-neutral-500">
+                Prefira combinar a entrega em locais públicos e seguros, como
+                aeroportos ou shoppings.
+              </p>
+            </>
+          ) : (
+            <ConnectionPaywall
+              matchId={m.id}
+              connectionFee={m.connection_fee}
+              otherName={otherProfile?.full_name ?? "essa pessoa"}
+            />
+          )}
 
           <div className="mt-6 rounded-2xl border border-black/10 p-4 dark:border-white/10">
             <h3 className="font-semibold">Confirmação de entrega</h3>

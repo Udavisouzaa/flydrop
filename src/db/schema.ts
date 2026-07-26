@@ -48,7 +48,11 @@ export const profiles = pgTable("profiles", {
 });
 
 // ---------------------------------------------------------------------------
-// payment_accounts (PENDING - migration 0001)
+// payment_accounts — DEPRECATED
+//
+// Belongs to the abandoned Stripe Connect escrow model. Under the connection-
+// fee model no traveler payout account exists, so nothing writes here. The
+// table is still in the DB (empty) pending a drop migration.
 // ---------------------------------------------------------------------------
 export const paymentAccounts = pgTable(
   "payment_accounts",
@@ -220,6 +224,13 @@ export const matches = pgTable(
       withTimezone: true,
     }),
 
+    // Connection-fee model: the fee is fixed when the match is created, and
+    // only the Asaas webhook (service_role) may set the unlock fields — the
+    // guard_unlock_fields trigger rejects anyone else.
+    connectionFee: numeric("connection_fee"),
+    unlockedAt: timestamp("unlocked_at", { withTimezone: true }),
+    unlockedBy: uuid("unlocked_by").references(() => profiles.id),
+
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },
@@ -302,15 +313,26 @@ export const payments = pgTable(
     payerId: uuid("payer_id")
       .notNull()
       .references(() => profiles.id),
-    payeeId: uuid("payee_id")
-      .notNull()
-      .references(() => profiles.id),
+    // Null for connection fees: nobody is being paid out, the platform just
+    // keeps the fee.
+    payeeId: uuid("payee_id").references(() => profiles.id),
 
+    kind: text("kind", { enum: ["connection_fee", "delivery_escrow"] })
+      .notNull()
+      .default("connection_fee"),
+
+    // PSP-agnostic fields (Asaas today; "delivery_escrow" is legacy/unused).
+    psp: text("psp"),
+    pspChargeId: text("psp_charge_id"),
+    pixQrPayload: text("pix_qr_payload"),
+    pixExpiresAt: timestamp("pix_expires_at", { withTimezone: true }),
+
+    // Legacy Stripe-escrow columns, kept because the table still has them.
     stripePaymentIntentId: text("stripe_payment_intent_id").unique(),
     stripeTransferId: text("stripe_transfer_id"),
 
     amountTotal: numeric("amount_total").notNull(),
-    amountToTraveler: numeric("amount_to_traveler").notNull(),
+    amountToTraveler: numeric("amount_to_traveler"),
     amountCommission: numeric("amount_commission").notNull(),
 
     status: text("status", {

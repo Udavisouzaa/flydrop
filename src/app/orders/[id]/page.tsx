@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { getCurrentUserWithProfile } from "@/utils/supabase/queries";
 import { expressInterest } from "@/app/matches/actions";
-import type { Order, Profile, Trip } from "@/types/database";
+import type { Order, ProfilePublic, Trip } from "@/types/database";
 
 export default async function OrderDetailPage({
   params,
@@ -27,11 +27,11 @@ export default async function OrderDetailPage({
   const o = order as Order;
 
   const { data: requester } = await supabase
-    .from("profiles")
+    .from("profiles_public")
     .select("*")
     .eq("id", o.requester_id)
     .single();
-  const requesterProfile = requester as Profile | null;
+  const requesterProfile = requester as ProfilePublic | null;
 
   const isOwner = user?.id === o.requester_id;
 

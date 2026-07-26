@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { getCurrentUserWithProfile } from "@/utils/supabase/queries";
 import { expressInterest } from "@/app/matches/actions";
-import type { Trip, Profile, Order } from "@/types/database";
+import type { Trip, ProfilePublic, Order } from "@/types/database";
 
 export default async function TripDetailPage({
   params,
@@ -27,11 +27,11 @@ export default async function TripDetailPage({
   const t = trip as Trip;
 
   const { data: traveler } = await supabase
-    .from("profiles")
+    .from("profiles_public")
     .select("*")
     .eq("id", t.traveler_id)
     .single();
-  const travelerProfile = traveler as Profile | null;
+  const travelerProfile = traveler as ProfilePublic | null;
 
   const isOwner = user?.id === t.traveler_id;
 

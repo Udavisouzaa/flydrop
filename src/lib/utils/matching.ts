@@ -91,7 +91,7 @@ export async function suggestTripsForOrder(
 
   let query = supabase
     .from("trips")
-    .select("*, profiles!trips_traveler_id_fkey(avg_rating)")
+    .select("*")
     .eq("status", "active")
     .ilike("origin_city", order.origin_city)
     .ilike("destination_city", order.destination_city)
@@ -106,9 +106,21 @@ export async function suggestTripsForOrder(
   const { data: trips, error: tripsError } = await query;
   if (tripsError || !trips) return [];
 
-  const scored = (trips as unknown as (Trip & {
-    profiles: { avg_rating: number | null } | null;
-  })[])
+  // profiles_public is a view, so PostgREST can't embed it via a FK-based
+  // join like `profiles!trips_traveler_id_fkey(...)`; fetch ratings
+  // separately and merge in memory instead.
+  const travelerIds = Array.from(
+    new Set((trips as Trip[]).map((t) => t.traveler_id))
+  );
+  const { data: travelerProfiles } = await supabase
+    .from("profiles_public")
+    .select("id, avg_rating")
+    .in("id", travelerIds);
+  const ratingById = new Map(
+    (travelerProfiles ?? []).map((p) => [p.id, p.avg_rating as number | null])
+  );
+
+  const scored = (trips as Trip[])
     .filter(
       (t) =>
         !order.weight_kg ||
@@ -117,7 +129,11 @@ export async function suggestTripsForOrder(
     )
     .map((t) => ({
       ...t,
-      matchScore: scoreTripForOrder(t, order, t.profiles?.avg_rating ?? null),
+      matchScore: scoreTripForOrder(
+        t,
+        order,
+        ratingById.get(t.traveler_id) ?? null
+      ),
     }))
     .sort((a, b) => b.matchScore - a.matchScore)
     .slice(0, limit);

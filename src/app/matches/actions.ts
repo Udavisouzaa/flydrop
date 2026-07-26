@@ -15,7 +15,26 @@ import {
   notifyNewMessage,
   createNotification,
 } from "@/lib/utils/notifications";
-import { releasePayment } from "@/app/payments/actions";
+
+/**
+ * Connection-fee pricing (taxa de conexão model, replacing Stripe escrow):
+ * a flat/percentage fee charged to unlock contact info between the two
+ * parties of a match. Delivery payment itself happens off-platform.
+ * Tunable business rule — currently 10% of the order's stated budget,
+ * clamped to a sane range, with a flat default when no budget is set.
+ */
+const CONNECTION_FEE_DEFAULT = 9.9;
+const CONNECTION_FEE_MIN = 4.9;
+const CONNECTION_FEE_MAX = 29.9;
+const CONNECTION_FEE_RATE = 0.1;
+
+function calculateConnectionFee(orderBudget: number | null): number {
+  if (!orderBudget || orderBudget <= 0) return CONNECTION_FEE_DEFAULT;
+  const raw = orderBudget * CONNECTION_FEE_RATE;
+  return Math.round(
+    Math.min(CONNECTION_FEE_MAX, Math.max(CONNECTION_FEE_MIN, raw)) * 100
+  ) / 100;
+}
 
 /** Resolve the traveler_id and requester_id for a match, joining trip+order. */
 async function getMatchParties(
@@ -72,9 +91,23 @@ export async function expressInterest(formData: FormData) {
 
   const { trip_id, order_id } = parsed.data;
 
+  const { data: order } = await supabase
+    .from("orders")
+    .select("budget")
+    .eq("id", order_id)
+    .single();
+  const connectionFee = calculateConnectionFee(
+    order?.budget != null ? Number(order.budget) : null
+  );
+
   const { data, error } = await supabase
     .from("matches")
-    .insert({ trip_id, order_id, created_by: user.id })
+    .insert({
+      trip_id,
+      order_id,
+      created_by: user.id,
+      connection_fee: connectionFee,
+    })
     .select("id")
     .single();
 
@@ -233,10 +266,9 @@ export async function confirmDropoff(formData: FormData) {
       requester_id: parties.requesterId,
     });
 
-    // Release escrowed funds to the traveler now that delivery is confirmed
-    // by both parties (best-effort — see payments/actions.ts).
-    await releasePayment(matchId);
-
+    // No escrow release here: under the connection-fee model the platform
+    // only charges to unlock contact, and the delivery payment itself happens
+    // directly between the two parties, off-platform.
     await createNotification({
       userId: parties.travelerId,
       type: "match_completed",

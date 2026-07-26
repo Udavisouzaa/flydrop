@@ -1,4 +1,5 @@
 import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/server";
 
 export type NotificationType =
@@ -10,7 +11,7 @@ export type NotificationType =
   | "new_message"
   | "pickup_confirmed"
   | "dropoff_confirmed"
-  | "payment_released"
+  | "connection_unlocked"
   | "review_received";
 
 interface CreateNotificationInput {
@@ -21,17 +22,22 @@ interface CreateNotificationInput {
   relatedMatchId?: string;
   relatedOrderId?: string;
   relatedTripId?: string;
+  /**
+   * Optional Supabase client to write with. Webhook handlers have no user
+   * session, so RLS would reject the insert from the default cookie-based
+   * client — they pass the service-role client instead.
+   */
+  client?: SupabaseClient;
 }
 
 /**
  * Insert a notification row for a user.
  *
- * NOTE: requires the `notifications` table (migration 0005). Until that
- * migration is applied, this fails silently (logged, not thrown) so it
- * never blocks the primary action (e.g. creating a match) from succeeding.
+ * Fails silently (logged, not thrown) so it never blocks the primary action
+ * (e.g. creating a match, confirming a payment) from succeeding.
  */
 export async function createNotification(input: CreateNotificationInput) {
-  const supabase = await createClient();
+  const supabase = input.client ?? (await createClient());
 
   const { error } = await supabase.from("notifications").insert({
     user_id: input.userId,

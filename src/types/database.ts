@@ -8,6 +8,32 @@ export interface Profile {
   phone: string | null;
   avatar_url: string | null;
   bio: string | null;
+  avg_rating: number | null;
+  total_reviews: number | null;
+  kyc_verified: boolean | null;
+  kyc_verification_date: string | null;
+  trips_completed: number | null;
+  orders_completed: number | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+/**
+ * Public-safe projection of `profiles`, backed by the `profiles_public` view
+ * (migration applied 2026-07). Excludes `phone` and any other PII — use this
+ * whenever looking up another user's profile (not your own row), since RLS
+ * on the base `profiles` table now only allows selecting your own row.
+ */
+export interface ProfilePublic {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  avg_rating: number | null;
+  total_reviews: number | null;
+  kyc_verified: boolean | null;
+  trips_completed: number | null;
+  orders_completed: number | null;
   created_at: string;
 }
 
@@ -49,6 +75,22 @@ export interface Match {
   agreed_price: number | null;
   created_by: string;
   created_at: string;
+  accepted_at: string | null;
+  completed_at: string | null;
+  declined_reason: string | null;
+  pickup_location: string | null;
+  pickup_instructions: string | null;
+  dropoff_location: string | null;
+  dropoff_instructions: string | null;
+  traveler_confirmed_pickup: boolean | null;
+  traveler_confirmed_pickup_at: string | null;
+  requester_confirmed_dropoff: boolean | null;
+  requester_confirmed_dropoff_at: string | null;
+  updated_at: string | null;
+  /** Connection-fee model (migration applied 2026-07): fee to unlock contact info. */
+  connection_fee: number | null;
+  unlocked_at: string | null;
+  unlocked_by: string | null;
 }
 
 export interface Message {

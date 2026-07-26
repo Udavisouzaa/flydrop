@@ -1,13 +1,26 @@
 import { z } from "zod";
 
-export const initializePaymentSchema = z.object({
+/**
+ * Connection-fee model: the only charge Flydrop makes is the one-off fee to
+ * unlock a match's contact info. The client sends nothing but the match id —
+ * the amount always comes from `matches.connection_fee` server-side, so a
+ * tampered request can't lower the price.
+ */
+export const connectionCheckoutSchema = z.object({
   match_id: z.string().uuid(),
-  amount: z.coerce.number().positive("Valor deve ser maior que zero"),
 });
 
-export const stripeOnboardingSchema = z.object({
-  return_url: z.string().url(),
-  refresh_url: z.string().url(),
+export type ConnectionCheckoutInput = z.infer<typeof connectionCheckoutSchema>;
+
+/** Shape of the Asaas webhook payload we actually depend on. */
+export const asaasWebhookSchema = z.object({
+  event: z.string(),
+  payment: z.object({
+    id: z.string(),
+    status: z.string().optional(),
+    value: z.number().optional(),
+    externalReference: z.string().nullable().optional(),
+  }),
 });
 
-export type InitializePaymentInput = z.infer<typeof initializePaymentSchema>;
+export type AsaasWebhookInput = z.infer<typeof asaasWebhookSchema>;
