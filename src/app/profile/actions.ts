@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { updateProfileSchema } from "@/lib/validations/profile";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function updateProfile(formData: FormData) {
   const supabase = await createClient();
@@ -12,6 +13,15 @@ export async function updateProfile(formData: FormData) {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+  const limit = await rateLimit("writeByUser", user.id);
+  if (!limit.ok) {
+    redirect(
+      `/profile?error=${encodeURIComponent(
+        "Muitas alterações em pouco tempo. Aguarde alguns minutos."
+      )}`
+    );
+  }
 
   const parsed = updateProfileSchema.safeParse({
     full_name: formData.get("full_name"),
@@ -32,9 +42,15 @@ export async function updateProfile(formData: FormData) {
     .eq("id", user.id);
 
   if (error) {
-    redirect(`/profile?error=${encodeURIComponent(error.message)}`);
+    console.error("[updateProfile] update failed", error);
+    redirect(
+      `/profile?error=${encodeURIComponent(
+        "Não foi possível salvar as alterações."
+      )}`
+    );
   }
 
   revalidatePath("/profile");
   revalidatePath("/dashboard");
+  redirect("/profile?ok=1");
 }

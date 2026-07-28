@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { createOrderSchema } from "@/lib/validations/order";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function createOrder(formData: FormData) {
   const supabase = await createClient();
@@ -10,6 +11,15 @@ export async function createOrder(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const limit = await rateLimit("writeByUser", user.id);
+  if (!limit.ok) {
+    redirect(
+      `/orders/new?error=${encodeURIComponent(
+        "Você criou muitos pedidos em pouco tempo. Aguarde alguns minutos."
+      )}`
+    );
+  }
 
   const no_minimum_budget = formData.get("no_minimum_budget") === "true";
 
@@ -51,10 +61,9 @@ export async function createOrder(formData: FormData) {
     .single();
 
   if (error || !data) {
+    console.error("[createOrder] insert failed", error);
     redirect(
-      `/orders/new?error=${encodeURIComponent(
-        error?.message ?? "Erro ao criar pedido"
-      )}`
+      `/orders/new?error=${encodeURIComponent("Não foi possível criar o pedido.")}`
     );
   }
 
@@ -70,6 +79,15 @@ export async function cancelOrder(formData: FormData) {
 
   const orderId = String(formData.get("order_id") || "");
   if (!orderId) return;
+
+  const limit = await rateLimit("writeByUser", user.id);
+  if (!limit.ok) {
+    redirect(
+      `/orders/${orderId}?error=${encodeURIComponent(
+        "Muitas ações em pouco tempo. Aguarde alguns minutos."
+      )}`
+    );
+  }
 
   await supabase
     .from("orders")

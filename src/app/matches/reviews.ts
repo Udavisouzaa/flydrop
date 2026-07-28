@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 import { createReviewSchema } from "@/lib/validations/review";
 import { createNotification } from "@/lib/utils/notifications";
+import { rateLimit } from "@/lib/rate-limit";
 
 /**
  * Leave a review for the other party of a completed match.
@@ -17,6 +18,18 @@ export async function createReview(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  // A constraint UNIQUE já impede avaliar o mesmo match duas vezes, mas cada
+  // tentativa ainda custa um INSERT e uma notificação para o avaliado.
+  const limit = await rateLimit("writeByUser", user.id);
+  if (!limit.ok) {
+    const matchId = String(formData.get("match_id") || "");
+    redirect(
+      `/matches/${matchId}?error=${encodeURIComponent(
+        "Muitas ações em pouco tempo. Aguarde alguns minutos."
+      )}`
+    );
+  }
 
   const parsed = createReviewSchema.safeParse({
     match_id: formData.get("match_id"),
@@ -47,11 +60,14 @@ export async function createReview(formData: FormData) {
   });
 
   if (error) {
+    console.error("[createReview] insert failed", error);
     redirect(
       `/matches/${v.match_id}?error=${encodeURIComponent(
-        error.message.includes("duplicate")
-          ? "Você já avaliou este match"
-          : error.message
+        // 23505 is unique_violation — the only failure worth explaining. The
+        // rest (RLS rejection, constraint names) stay in the log.
+        error.code === "23505"
+          ? "Você já avaliou este match."
+          : "Não foi possível enviar a avaliação."
       )}`
     );
   }

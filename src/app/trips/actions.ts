@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { createTripSchema } from "@/lib/validations/trip";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function createTrip(formData: FormData) {
   const supabase = await createClient();
@@ -10,6 +11,15 @@ export async function createTrip(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const limit = await rateLimit("writeByUser", user.id);
+  if (!limit.ok) {
+    redirect(
+      `/trips/new?error=${encodeURIComponent(
+        "Você criou muitas viagens em pouco tempo. Aguarde alguns minutos."
+      )}`
+    );
+  }
 
   const parsed = createTripSchema.safeParse({
     origin_city: formData.get("origin_city"),
@@ -48,10 +58,11 @@ export async function createTrip(formData: FormData) {
     .single();
 
   if (error || !data) {
+    // Postgres messages name tables, columns and constraints, and this one is
+    // rendered straight back onto the page. Log it; show something neutral.
+    console.error("[createTrip] insert failed", error);
     redirect(
-      `/trips/new?error=${encodeURIComponent(
-        error?.message ?? "Erro ao criar viagem"
-      )}`
+      `/trips/new?error=${encodeURIComponent("Não foi possível criar a viagem.")}`
     );
   }
 
@@ -67,6 +78,15 @@ export async function cancelTrip(formData: FormData) {
 
   const tripId = String(formData.get("trip_id") || "");
   if (!tripId) return;
+
+  const limit = await rateLimit("writeByUser", user.id);
+  if (!limit.ok) {
+    redirect(
+      `/trips/${tripId}?error=${encodeURIComponent(
+        "Muitas ações em pouco tempo. Aguarde alguns minutos."
+      )}`
+    );
+  }
 
   await supabase
     .from("trips")
