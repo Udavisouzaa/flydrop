@@ -12,6 +12,13 @@
 
 # testing
 /coverage
+# Artefatos de execução do Playwright: traces, screenshots e o relatório que o
+# reporter customizado escreve. São saída de um run local, mudam a cada rodada e
+# os traces são binários pesados — o que vale versionar é tests/, não o resultado.
+/test-results/
+/playwright-report/
+/blob-report/
+ai-bug-report.md
 
 # next.js
 /.next/
