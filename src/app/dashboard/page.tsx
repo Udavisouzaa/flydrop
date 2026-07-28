@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ChevronRight, Bell, User } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
 import { getCurrentUserWithProfile } from "@/utils/supabase/queries";
 import { getUnreadNotifications } from "@/lib/utils/notifications";
-import { MotionList, MotionListItem } from "@/components/motion";
+import ModeSwitcher from "@/components/home/ModeSwitcher";
+import { openNotification, markAllNotificationsRead } from "./actions";
 import type { Trip, Order, Match } from "@/types/database";
 
 const statusLabel: Record<string, string> = {
@@ -18,7 +20,7 @@ const statusLabel: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const { user } = await getCurrentUserWithProfile();
+  const { user, profile } = await getCurrentUserWithProfile();
   if (!user) redirect("/login");
 
   const supabase = await createClient();
@@ -46,122 +48,236 @@ export default async function DashboardPage() {
 
   const myTrips = (trips ?? []) as Trip[];
   const myOrders = (orders ?? []) as Order[];
-  const myMatchIds = new Set(myTrips.map((t) => t.id));
+  const myTripIds = new Set(myTrips.map((t) => t.id));
   const myOrderIds = new Set(myOrders.map((o) => o.id));
   const myMatches = (
     (matches ?? []) as (Match & { trips: Trip; orders: Order })[]
-  ).filter((m) => myMatchIds.has(m.trip_id) || myOrderIds.has(m.order_id));
+  ).filter((m) => myTripIds.has(m.trip_id) || myOrderIds.has(m.order_id));
+
+  const firstName = profile?.full_name?.split(" ")[0];
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-12">
-      <h1 className="text-2xl font-bold">Meu painel</h1>
+    <div className="mx-auto max-w-lg px-4 pt-4 pb-2">
+      <header className="mb-4 flex items-center justify-between">
+        <div>
+          <p className="text-muted-foreground text-sm">
+            {firstName ? `Olá, ${firstName}` : "Olá"}
+          </p>
+          <p className="text-xl font-black tracking-tight">
+            Lev<span className="text-brand-ink">Aí</span>
+          </p>
+        </div>
+        {/*
+          The bell used to be the profile link. Tapping a badge that reads "3"
+          and landing on account settings is a small betrayal, and the three
+          notifications were already on this page — so the bell now jumps to
+          them, and the profile gets its own control.
+        */}
+        <div className="flex items-center gap-2">
+          {notifications.length > 0 && (
+            <a
+              href="#novidades"
+              aria-label={`${notifications.length} novidade${
+                notifications.length === 1 ? "" : "s"
+              } não lida${notifications.length === 1 ? "" : "s"}`}
+              className="glass-strong relative flex size-11 items-center justify-center rounded-full"
+            >
+              <Bell aria-hidden className="size-5" />
+              <span className="bg-accent-neon text-accent-neon-foreground absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full text-[10px] font-bold">
+                {notifications.length}
+              </span>
+            </a>
+          )}
+          <Link
+            href="/profile"
+            aria-label="Meu perfil"
+            className="glass-strong flex size-11 items-center justify-center rounded-full"
+          >
+            <User aria-hidden className="size-5" />
+          </Link>
+        </div>
+      </header>
+
+      <ModeSwitcher />
 
       {notifications.length > 0 && (
-        <section className="mt-6 rounded-2xl border border-orange-500/30 bg-orange-500/5 p-4">
-          <h2 className="text-sm font-semibold text-orange-600 dark:text-orange-400">
-            Notificações
-          </h2>
-          <ul className="mt-2 space-y-2">
-            {notifications.map((n) => (
-              <li key={n.id} className="text-sm">
-                <Link
-                  href={
-                    n.related_match_id
-                      ? `/matches/${n.related_match_id}`
-                      : n.related_order_id
-                      ? `/orders/${n.related_order_id}`
-                      : n.related_trip_id
-                      ? `/trips/${n.related_trip_id}`
-                      : "/dashboard"
-                  }
-                  className="hover:text-orange-500"
-                >
-                  <span className="font-medium">{n.title}</span>
-                  {n.message && (
-                    <span className="text-neutral-500"> — {n.message}</span>
-                  )}
-                </Link>
-              </li>
-            ))}
-          </ul>
+        <section id="novidades" className="mt-6 scroll-mt-4">
+          <div className="mb-2 flex items-center justify-between px-1">
+            <h2 className="text-base font-bold">Novidades</h2>
+            <form action={markAllNotificationsRead}>
+              <button type="submit" className="text-brand-ink text-sm font-semibold">
+                Marcar todas como lidas
+              </button>
+            </form>
+          </div>
+          <div className="glass overflow-hidden rounded-2xl">
+            <ul className="divide-border divide-y">
+              {notifications.map((n) => (
+                <li key={n.id}>
+                  {/*
+                    A form, not a Link: opening a notification has to mark it
+                    read on the way through, otherwise the badge never clears.
+                  */}
+                  <form action={openNotification}>
+                    <input type="hidden" name="notification_id" value={n.id} />
+                    <button
+                      type="submit"
+                      className="hover:bg-foreground/[0.04] flex w-full items-center gap-3 px-4 py-3 text-left transition-colors"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium">{n.title}</span>
+                        {n.message && (
+                          <span className="text-muted-foreground block truncate text-xs">
+                            {n.message}
+                          </span>
+                        )}
+                      </span>
+                      <ChevronRight
+                        aria-hidden
+                        className="text-muted-foreground size-4 shrink-0"
+                      />
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       )}
 
-      <section className="mt-10">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Minhas viagens</h2>
-          <Link href="/trips/new" className="text-sm text-orange-500 hover:underline">
-            + Cadastrar viagem
-          </Link>
-        </div>
-        {myTrips.length === 0 ? (
-          <p className="mt-3 text-sm text-neutral-500">
-            Você ainda não cadastrou nenhuma viagem.
-          </p>
-        ) : (
-          <MotionList className="mt-3 divide-y divide-black/10 dark:divide-white/10">
-            {myTrips.map((t) => (
-              <MotionListItem key={t.id} className="py-3">
-                <Link href={`/trips/${t.id}`} className="hover:text-orange-500">
-                  {t.origin_city} → {t.destination_city} ·{" "}
-                  {new Date(t.departure_date).toLocaleDateString("pt-BR")}
-                </Link>
-                <span className="ml-2 text-xs text-neutral-500">
-                  {statusLabel[t.status]}
-                </span>
-              </MotionListItem>
-            ))}
-          </MotionList>
-        )}
-      </section>
+      <Section
+        title="Minhas viagens"
+        action={{ href: "/trips/new", label: "Cadastrar" }}
+        empty={
+          myTrips.length === 0
+            ? "Você ainda não cadastrou nenhuma viagem."
+            : undefined
+        }
+      >
+        <ul className="divide-border divide-y">
+          {myTrips.slice(0, 3).map((t) => (
+            <Row
+              key={t.id}
+              href={`/trips/${t.id}`}
+              title={`${t.origin_city} → ${t.destination_city}`}
+              subtitle={new Date(t.departure_date).toLocaleDateString("pt-BR")}
+              badge={statusLabel[t.status]}
+            />
+          ))}
+        </ul>
+      </Section>
 
-      <section className="mt-10">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Meus pedidos</h2>
-          <Link href="/orders/new" className="text-sm text-orange-500 hover:underline">
-            + Cadastrar pedido
-          </Link>
-        </div>
-        {myOrders.length === 0 ? (
-          <p className="mt-3 text-sm text-neutral-500">
-            Você ainda não cadastrou nenhum pedido.
-          </p>
-        ) : (
-          <MotionList className="mt-3 divide-y divide-black/10 dark:divide-white/10">
-            {myOrders.map((o) => (
-              <MotionListItem key={o.id} className="py-3">
-                <Link href={`/orders/${o.id}`} className="hover:text-orange-500">
-                  {o.title} · {o.origin_city} → {o.destination_city}
-                </Link>
-                <span className="ml-2 text-xs text-neutral-500">
-                  {statusLabel[o.status]}
-                </span>
-              </MotionListItem>
-            ))}
-          </MotionList>
-        )}
-      </section>
+      <Section
+        title="Meus pedidos"
+        action={{ href: "/orders/new", label: "Criar" }}
+        empty={
+          myOrders.length === 0
+            ? "Você ainda não cadastrou nenhum pedido."
+            : undefined
+        }
+      >
+        <ul className="divide-border divide-y">
+          {myOrders.slice(0, 3).map((o) => (
+            <Row
+              key={o.id}
+              href={`/orders/${o.id}`}
+              title={o.title}
+              subtitle={`${o.origin_city} → ${o.destination_city}`}
+              badge={statusLabel[o.status]}
+            />
+          ))}
+        </ul>
+      </Section>
 
-      <section className="mt-10">
-        <h2 className="text-lg font-semibold">Meus matches</h2>
-        {myMatches.length === 0 ? (
-          <p className="mt-3 text-sm text-neutral-500">Nenhum match ainda.</p>
-        ) : (
-          <MotionList className="mt-3 divide-y divide-black/10 dark:divide-white/10">
-            {myMatches.map((m) => (
-              <MotionListItem key={m.id} className="py-3">
-                <Link href={`/matches/${m.id}`} className="hover:text-orange-500">
-                  {m.orders.title} · {m.trips.origin_city} →{" "}
-                  {m.trips.destination_city}
-                </Link>
-                <span className="ml-2 text-xs text-neutral-500">
-                  {statusLabel[m.status]}
-                </span>
-              </MotionListItem>
-            ))}
-          </MotionList>
-        )}
-      </section>
+      <Section
+        title="Combinações"
+        action={{ href: "/tracking", label: "Ver todas" }}
+        empty={myMatches.length === 0 ? "Nenhuma combinação ainda." : undefined}
+      >
+        <ul className="divide-border divide-y">
+          {myMatches.slice(0, 3).map((m) => (
+            <Row
+              key={m.id}
+              href={`/matches/${m.id}`}
+              title={m.orders.title}
+              subtitle={`${m.trips.origin_city} → ${m.trips.destination_city}`}
+              badge={statusLabel[m.status]}
+            />
+          ))}
+        </ul>
+      </Section>
     </div>
+  );
+}
+
+function Section({
+  title,
+  action,
+  empty,
+  children,
+}: {
+  title: string;
+  action?: { href: string; label: string };
+  /** Texto do estado vazio. Se definido, o conteúdo não é renderizado. */
+  empty?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mt-6">
+      <div className="mb-2 flex items-center justify-between px-1">
+        <h2 className="text-base font-bold">{title}</h2>
+        {action && (
+          <Link
+            href={action.href}
+            className="text-brand-ink text-sm font-semibold"
+          >
+            {action.label}
+          </Link>
+        )}
+      </div>
+      <div className="glass overflow-hidden rounded-2xl">
+        {empty ? (
+          <p className="text-muted-foreground px-4 py-6 text-center text-sm">
+            {empty}
+          </p>
+        ) : (
+          children
+        )}
+      </div>
+    </section>
+  );
+}
+
+function Row({
+  href,
+  title,
+  subtitle,
+  badge,
+}: {
+  href: string;
+  title: string;
+  subtitle: string;
+  badge?: string;
+}) {
+  return (
+    <li>
+      <Link href={href} className="flex items-center gap-3 px-4 py-3">
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">{title}</span>
+          <span className="text-muted-foreground block truncate text-xs">
+            {subtitle}
+          </span>
+        </span>
+        {badge && (
+          <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium">
+            {badge}
+          </span>
+        )}
+        <ChevronRight
+          aria-hidden
+          className="text-muted-foreground size-4 shrink-0"
+        />
+      </Link>
+    </li>
   );
 }

@@ -1,67 +1,91 @@
 import Link from "next/link";
 import { login } from "./actions";
 import { MotionForm, MotionItem, MotionButton, MotionBanner } from "@/components/motion";
+import { AuthShell, AuthField } from "@/components/auth-shell";
+
+/**
+ * Notices this page is willing to show, keyed by a short code.
+ *
+ * Deliberately a lookup and not free text in the query string: anything the URL
+ * can put on a login screen is something an attacker can put on a login screen.
+ * `?message=Sua sessão expirou, confirme sua senha` is a convincing phishing
+ * page hosted on our own domain, and it costs nothing to make impossible.
+ */
+const AVISOS: Record<string, string> = {
+  confirme: "Confirme seu e-mail para entrar.",
+  excluida: "Sua conta foi excluída. Sentiremos sua falta.",
+};
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; message?: string }>;
+  searchParams: Promise<{ error?: string; aviso?: string; next?: string }>;
 }) {
-  const { error, message } = await searchParams;
+  const { error, aviso, next } = await searchParams;
+  const message = aviso ? AVISOS[aviso] : undefined;
+
+  // Only ever a same-origin path. `//evil.com` and `https://evil.com` are both
+  // valid values for a `next` param an attacker can put in a link, and both
+  // would turn this form into an open redirect.
+  const safeNext =
+    next && next.startsWith("/") && !next.startsWith("//") ? next : null;
 
   return (
-    <div className="mx-auto max-w-sm px-6 py-16">
-      <h1 className="text-2xl font-bold">Entrar</h1>
-      <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-        Ainda não tem conta?{" "}
-        <Link href="/signup" className="text-orange-500 hover:underline">
-          Cadastre-se
-        </Link>
-      </p>
-
+    <AuthShell title="Entrar" subtitle="Bem-vindo de volta.">
       <MotionBanner
         show={!!message}
-        className="mt-4 rounded-lg bg-orange-50 px-4 py-2 text-sm text-orange-600 dark:bg-orange-950 dark:text-orange-400"
+        testId="login-notice"
+        className="bg-brand-soft text-brand-ink mb-4 rounded-xl px-4 py-2.5 text-sm"
       >
         {message}
       </MotionBanner>
       <MotionBanner
         show={!!error}
-        className="mt-4 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600 dark:bg-red-950 dark:text-red-400"
+        testId="login-error"
+        className="mb-4 rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-600 dark:bg-red-950/60 dark:text-red-300"
       >
         {error}
       </MotionBanner>
 
-      <MotionForm action={login} className="mt-8 space-y-4">
-        <MotionItem>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">E-mail</span>
-            <input
-              name="email"
-              type="email"
-              required
-              className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 outline-none focus:border-orange-500 dark:border-white/20"
-            />
-          </label>
-        </MotionItem>
-        <MotionItem>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">Senha</span>
-            <input
-              name="password"
-              type="password"
-              required
-              className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 outline-none focus:border-orange-500 dark:border-white/20"
-            />
-          </label>
-        </MotionItem>
+      <MotionForm action={login} className="space-y-4" testId="login-form">
+        {safeNext && (
+          <input type="hidden" name="next" value={safeNext} data-testid="login-next" />
+        )}
+        <AuthField
+          label="E-mail"
+          name="email"
+          type="email"
+          autoComplete="email"
+          required
+          testId="login-email"
+        />
+        <AuthField
+          label="Senha"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          required
+          testId="login-password"
+        />
         <MotionButton
           type="submit"
-          className="w-full rounded-full bg-orange-500 px-6 py-3 font-medium text-white hover:bg-orange-600"
+          testId="login-submit"
+          className="bg-brand hover:bg-brand-strong mt-2 w-full rounded-2xl py-3.5 text-base font-semibold text-brand-foreground"
         >
           Entrar
         </MotionButton>
       </MotionForm>
-    </div>
+
+      <MotionItem className="mt-6 text-center text-sm">
+        <span className="text-muted-foreground">Ainda não tem conta? </span>
+        <Link
+          href="/signup"
+          data-testid="login-signup-link"
+          className="text-brand-ink font-semibold hover:underline"
+        >
+          Criar conta
+        </Link>
+      </MotionItem>
+    </AuthShell>
   );
 }

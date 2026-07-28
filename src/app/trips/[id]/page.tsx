@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { getCurrentUserWithProfile } from "@/utils/supabase/queries";
 import { expressInterest } from "@/app/matches/actions";
+import BackLink from "@/components/BackLink";
 import type { Trip, ProfilePublic, Order } from "@/types/database";
 
 export default async function TripDetailPage({
@@ -46,57 +47,66 @@ export default async function TripDetailPage({
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-12">
-      <h1 className="text-2xl font-bold">
-        {t.origin_city}
-        {t.origin_state ? `/${t.origin_state}` : ""} → {t.destination_city}
-        {t.destination_state ? `/${t.destination_state}` : ""}
-      </h1>
-      <p className="mt-2 text-neutral-600 dark:text-neutral-400">
-        Partida em {new Date(t.departure_date).toLocaleDateString("pt-BR")}
-        {t.available_space_kg ? ` · até ${t.available_space_kg}kg disponíveis` : ""}
-      </p>
-      <p className="mt-1 text-sm text-neutral-500">
-        Viajante: {travelerProfile?.full_name ?? "Usuário Flydrop"}
-      </p>
-      {t.notes && <p className="mt-4 text-sm">{t.notes}</p>}
+    <div className="mx-auto max-w-lg px-4 pt-6 pb-2">
+      <BackLink href="/trips?aba=viagens" label="Viagens" />
+
+      <section className="glass rounded-3xl p-5">
+        <h1 className="text-xl font-black tracking-tight">
+          {t.origin_city}
+          {t.origin_state ? `/${t.origin_state}` : ""} → {t.destination_city}
+          {t.destination_state ? `/${t.destination_state}` : ""}
+        </h1>
+        <p className="text-muted-foreground mt-2 text-sm">
+          Partida em {new Date(t.departure_date).toLocaleDateString("pt-BR")}
+          {t.available_space_kg
+            ? ` · até ${t.available_space_kg}kg disponíveis`
+            : ""}
+        </p>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Viajante: {travelerProfile?.full_name ?? "Usuário LevAí"}
+        </p>
+        {t.notes && <p className="mt-4 text-sm/relaxed">{t.notes}</p>}
+      </section>
 
       {error && (
-        <p className="mt-4 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600 dark:bg-red-950 dark:text-red-400">
+        <p className="mt-4 rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-600 dark:bg-red-950/60 dark:text-red-300">
           {error}
         </p>
       )}
 
       {!user && (
-        <p className="mt-8 text-sm text-neutral-500">
-          <Link href="/login" className="text-orange-500 hover:underline">
+        <div className="glass mt-4 rounded-3xl p-5 text-sm">
+          <Link href="/login" className="text-brand-ink font-semibold hover:underline">
             Entre
           </Link>{" "}
           para demonstrar interesse nessa viagem.
-        </p>
+        </div>
       )}
 
       {user && !isOwner && (
-        <div className="mt-8 rounded-2xl border border-black/10 p-6 dark:border-white/10">
-          <h2 className="font-semibold">Tenho interesse nessa viagem</h2>
+        <div className="glass mt-4 rounded-3xl p-5">
+          <h2 className="font-bold">Tenho interesse nessa viagem</h2>
           {myOpenOrders.length === 0 ? (
-            <p className="mt-2 text-sm text-neutral-500">
+            <p className="text-muted-foreground mt-2 text-sm">
               Você precisa ter um pedido em aberto para propor um match.{" "}
-              <Link href="/orders/new" className="text-orange-500 hover:underline">
+              <Link
+                href="/orders/new"
+                className="text-brand-ink font-semibold hover:underline"
+              >
                 Cadastrar pedido
               </Link>
             </p>
           ) : (
-            <form action={expressInterest} className="mt-4 space-y-4">
+            <form action={expressInterest} className="mt-4">
               <input type="hidden" name="trip_id" value={t.id} />
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium">
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium">
                   Qual pedido seu combina com essa rota?
                 </span>
                 <select
                   name="order_id"
                   required
-                  className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 outline-none focus:border-orange-500 dark:border-white/20"
+                  className="glass-weak focus:border-brand-ink w-full rounded-xl px-3.5 py-3 text-base outline-none"
                 >
                   {myOpenOrders.map((o) => (
                     <option key={o.id} value={o.id}>
@@ -107,7 +117,7 @@ export default async function TripDetailPage({
               </label>
               <button
                 type="submit"
-                className="rounded-full bg-orange-500 px-6 py-3 font-medium text-white hover:bg-orange-600"
+                className="bg-brand hover:bg-brand-strong mt-4 w-full rounded-2xl py-3.5 text-base font-semibold text-brand-foreground transition-transform active:scale-[0.99]"
               >
                 Tenho interesse
               </button>
