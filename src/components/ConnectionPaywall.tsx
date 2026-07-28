@@ -29,6 +29,8 @@ export default function ConnectionPaywall({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  /** Fallback when the clipboard API is unavailable: show the raw payload. */
+  const [showPayload, setShowPayload] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Once a QR is on screen, watch for the unlock instead of making the user
@@ -75,9 +77,19 @@ export default function ConnectionPaywall({
 
   async function handleCopy() {
     if (!charge?.payload) return;
-    await navigator.clipboard.writeText(charge.payload);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    // navigator.clipboard is undefined outside a secure context and its write
+    // can be denied outright. Unhandled, that made the button do nothing at all
+    // — no copy, no feedback — which reads as a dead control.
+    try {
+      await navigator.clipboard.writeText(charge.payload);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError(
+        "Seu navegador bloqueou a cópia automática. Selecione o código abaixo e copie à mão."
+      );
+      setShowPayload(true);
+    }
   }
 
   return (
@@ -97,7 +109,7 @@ export default function ConnectionPaywall({
           type="button"
           onClick={handleGenerate}
           disabled={loading}
-          className="mt-4 rounded-full bg-orange-500 px-6 py-2.5 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+          className="mt-4 rounded-full bg-brand px-6 py-2.5 text-sm font-medium text-brand-foreground hover:bg-brand-strong disabled:opacity-50"
         >
           {loading ? "Gerando Pix..." : "Pagar taxa de conexão"}
         </button>
@@ -124,6 +136,15 @@ export default function ConnectionPaywall({
           >
             {copied ? "Código copiado!" : "Copiar código Pix (copia e cola)"}
           </button>
+          {showPayload && (
+            <textarea
+              readOnly
+              rows={3}
+              value={charge.payload}
+              onFocus={(e) => e.currentTarget.select()}
+              className="w-full resize-none rounded-lg border border-black/10 p-2 font-mono text-[10px] break-all dark:border-white/20"
+            />
+          )}
           <p className="text-xs text-neutral-500">
             Assim que o pagamento cair, o contato é liberado automaticamente
             nesta tela.

@@ -74,7 +74,7 @@ export default function Chat({
               transition={{ duration: 0.25, ease: "easeOut" }}
               className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${
                 m.sender_id === currentUserId
-                  ? "ml-auto bg-orange-500 text-white"
+                  ? "ml-auto bg-brand text-brand-foreground"
                   : "bg-black/5 dark:bg-white/10"
               }`}
             >
@@ -97,13 +97,13 @@ export default function Chat({
           name="content"
           placeholder="Escreva uma mensagem..."
           required
-          className="flex-1 rounded-full border border-black/10 bg-transparent px-4 py-2 text-sm outline-none focus:border-orange-500 dark:border-white/20"
+          className="flex-1 rounded-full border border-black/10 bg-transparent px-4 py-2 text-sm outline-none focus:border-brand-ink dark:border-white/20"
         />
         <motion.button
           type="submit"
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.95 }}
-          className="rounded-full bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
+          className="rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-foreground hover:bg-brand-strong"
         >
           Enviar
         </motion.button>

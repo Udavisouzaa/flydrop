@@ -15,16 +15,19 @@ const staggerContainer = {
 export function MotionForm({
   action,
   className,
+  testId,
   children,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   className?: string;
+  testId?: string;
   children: ReactNode;
 }) {
   return (
     <motion.form
       action={action}
       className={className}
+      data-testid={testId}
       initial="hidden"
       animate="visible"
       variants={staggerContainer}
@@ -55,16 +58,19 @@ export function MotionItem({
 export function MotionButton({
   type = "button",
   className,
+  testId,
   children,
 }: {
   type?: "button" | "submit" | "reset";
   className?: string;
+  testId?: string;
   children: ReactNode;
 }) {
   return (
     <motion.button
       type={type}
       className={className}
+      data-testid={testId}
       variants={fadeUp}
       transition={{ duration: 0.35, ease: "easeOut" }}
       whileHover={{ scale: 1.02 }}
@@ -78,10 +84,12 @@ export function MotionButton({
 export function MotionBanner({
   show,
   className,
+  testId,
   children,
 }: {
   show: boolean;
   className?: string;
+  testId?: string;
   children: ReactNode;
 }) {
   return (
@@ -89,6 +97,7 @@ export function MotionBanner({
       {show && (
         <motion.p
           className={className}
+          data-testid={testId}
           initial={{ opacity: 0, y: -8, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -8, scale: 0.98 }}

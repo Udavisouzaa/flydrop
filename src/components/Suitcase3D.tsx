@@ -153,27 +153,27 @@ export default function Suitcase3D({ progress }: SuitcaseProps) {
       <group position={[0, 0, 0]}>
         {/* Fundo */}
         <RoundedBox args={[1.5, 2, 0.1]} radius={0.02} smoothness={2} position={[0, 0, -0.25]} castShadow receiveShadow>
-          <meshStandardMaterial color="#c2410c" roughness={0.7} metalness={0.1} />
+          <meshStandardMaterial color="#8a6100" roughness={0.7} metalness={0.1} />
         </RoundedBox>
         {/* Laterais (cima/baixo) */}
         <RoundedBox args={[1.5, 0.1, 0.2]} radius={0.02} smoothness={2} position={[0, 0.95, -0.1]} castShadow receiveShadow>
-          <meshStandardMaterial color="#f97316" roughness={0.6} metalness={0.2} />
+          <meshStandardMaterial color="#f2c200" roughness={0.6} metalness={0.2} />
         </RoundedBox>
         <RoundedBox args={[1.5, 0.1, 0.2]} radius={0.02} smoothness={2} position={[0, -0.95, -0.1]} castShadow receiveShadow>
-          <meshStandardMaterial color="#f97316" roughness={0.6} metalness={0.2} />
+          <meshStandardMaterial color="#f2c200" roughness={0.6} metalness={0.2} />
         </RoundedBox>
         {/* Laterais (esquerda/direita) */}
         <RoundedBox args={[0.1, 1.8, 0.2]} radius={0.02} smoothness={2} position={[-0.7, 0, -0.1]} castShadow receiveShadow>
-          <meshStandardMaterial color="#f97316" roughness={0.6} metalness={0.2} />
+          <meshStandardMaterial color="#f2c200" roughness={0.6} metalness={0.2} />
         </RoundedBox>
         <RoundedBox args={[0.1, 1.8, 0.2]} radius={0.02} smoothness={2} position={[0.7, 0, -0.1]} castShadow receiveShadow>
-          <meshStandardMaterial color="#f97316" roughness={0.6} metalness={0.2} />
+          <meshStandardMaterial color="#f2c200" roughness={0.6} metalness={0.2} />
         </RoundedBox>
 
         {/* Ribs (Detalhes traseiros) */}
         {[-0.5, -0.25, 0, 0.25, 0.5].map((x, i) => (
           <RoundedBox key={i} args={[0.08, 1.8, 0.05]} radius={0.02} position={[x, 0, -0.31]} castShadow>
-            <meshStandardMaterial color="#e86100" roughness={0.6} metalness={0.2} />
+            <meshStandardMaterial color="#d9a300" roughness={0.6} metalness={0.2} />
           </RoundedBox>
         ))}
 
@@ -249,27 +249,27 @@ export default function Suitcase3D({ progress }: SuitcaseProps) {
           {/* TAMPA DA MALA Oca */}
           {/* Frente da tampa */}
           <RoundedBox args={[1.5, 2, 0.1]} radius={0.02} smoothness={2} position={[0, 0, 0.25]} castShadow receiveShadow>
-            <meshStandardMaterial color="#c2410c" roughness={0.7} metalness={0.1} />
+            <meshStandardMaterial color="#8a6100" roughness={0.7} metalness={0.1} />
           </RoundedBox>
           {/* Laterais (cima/baixo) */}
           <RoundedBox args={[1.5, 0.1, 0.2]} radius={0.02} smoothness={2} position={[0, 0.95, 0.1]} castShadow receiveShadow>
-            <meshStandardMaterial color="#f97316" roughness={0.6} metalness={0.2} />
+            <meshStandardMaterial color="#f2c200" roughness={0.6} metalness={0.2} />
           </RoundedBox>
           <RoundedBox args={[1.5, 0.1, 0.2]} radius={0.02} smoothness={2} position={[0, -0.95, 0.1]} castShadow receiveShadow>
-            <meshStandardMaterial color="#f97316" roughness={0.6} metalness={0.2} />
+            <meshStandardMaterial color="#f2c200" roughness={0.6} metalness={0.2} />
           </RoundedBox>
           {/* Laterais (esquerda/direita) */}
           <RoundedBox args={[0.1, 1.8, 0.2]} radius={0.02} smoothness={2} position={[-0.7, 0, 0.1]} castShadow receiveShadow>
-            <meshStandardMaterial color="#f97316" roughness={0.6} metalness={0.2} />
+            <meshStandardMaterial color="#f2c200" roughness={0.6} metalness={0.2} />
           </RoundedBox>
           <RoundedBox args={[0.1, 1.8, 0.2]} radius={0.02} smoothness={2} position={[0.7, 0, 0.1]} castShadow receiveShadow>
-            <meshStandardMaterial color="#f97316" roughness={0.6} metalness={0.2} />
+            <meshStandardMaterial color="#f2c200" roughness={0.6} metalness={0.2} />
           </RoundedBox>
 
           {/* Ribs da Tampa (Detalhes frontais) */}
           {[-0.5, -0.25, 0, 0.25, 0.5].map((x, i) => (
             <RoundedBox key={i} args={[0.08, 1.8, 0.05]} radius={0.02} position={[x, 0, 0.31]} castShadow>
-              <meshStandardMaterial color="#e86100" roughness={0.6} metalness={0.2} />
+              <meshStandardMaterial color="#d9a300" roughness={0.6} metalness={0.2} />
             </RoundedBox>
           ))}
 
