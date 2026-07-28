@@ -1,5 +1,5 @@
 /**
- * Drizzle ORM schema for FlyDrop.
+ * Drizzle ORM schema for LevAí.
  *
  * Mirrors the PostgreSQL schema managed via Supabase migrations
  * (see /supabase/migrations). This file is the TypeScript source of
@@ -21,7 +21,6 @@ import {
   date,
   uniqueIndex,
   index,
-  primaryKey,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 

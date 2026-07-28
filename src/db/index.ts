@@ -1,21 +1,31 @@
+// Erro de build se este módulo for parar num bundle de cliente. A connection
+// string do Postgres não pode chegar ao navegador em hipótese alguma, e um
+// `import` distraído num componente client é tudo o que separa os dois mundos.
+import "server-only";
+
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
 
 /**
- * Direct Postgres connection to the Supabase database, for use in
- * contexts that benefit from Drizzle's query builder (complex joins,
- * matching algorithm, aggregate stats) instead of the Supabase JS client.
+ * Conexão Postgres direta com o banco do Supabase, para consultas que se
+ * beneficiam do query builder do Drizzle (joins complexos, estatísticas
+ * agregadas) em vez do cliente JS do Supabase.
  *
- * Requires DATABASE_URL to be set (see .env.local.example) — this is the
- * Supabase "Connection string" (transaction pooler recommended for
- * serverless: port 6543) found in Project Settings > Database.
+ * ⚠️ ESTA CONEXÃO IGNORA RLS POR COMPLETO. Ela fala com o Postgres como dono
+ * do banco, então nenhuma policy de `supabase/migrations/` se aplica — não
+ * existe `auth.uid()` aqui. Toda leitura ou escrita ligada a um usuário
+ * específico deve continuar passando por `src/utils/supabase/server.ts`, que
+ * carrega a sessão e respeita as policies. Use isto só para trabalho que
+ * legitimamente enxerga a base inteira (relatórios, jobs), e sempre filtrando
+ * o dono do dado na mão.
  *
- * Simple CRUD tied to RLS/auth should continue using
- * `src/utils/supabase/{server,client}.ts` since those respect
- * Supabase Auth's row-level security automatically. Use this Drizzle
- * client for read-heavy/reporting queries run with the service role,
- * e.g. the matching algorithm in src/lib/utils/matching.ts.
+ * Hoje nada no app importa este módulo — `src/lib/utils/matching.ts`, que o
+ * comentário antigo citava, usa o cliente Supabase normal.
+ *
+ * Requer DATABASE_URL (ver .env.local.example): a "Connection string" em
+ * Project Settings > Database, de preferência a do transaction pooler
+ * (porta 6543) por causa do ambiente serverless.
  */
 declare global {
    
@@ -38,5 +48,14 @@ function getPool() {
   return global.__flydropPool;
 }
 
-export const db = drizzle(getPool(), { schema });
+/**
+ * Preguiçoso de propósito. Como `const db = drizzle(getPool())`, o pool era
+ * aberto — e o erro de DATABASE_URL ausente era lançado — no momento em que
+ * qualquer coisa importasse este arquivo, mesmo sem chegar a consultar nada.
+ * Agora a conexão só acontece quando alguém realmente vai usá-la.
+ */
+export function getDb() {
+  return drizzle(getPool(), { schema });
+}
+
 export * as schema from "./schema";

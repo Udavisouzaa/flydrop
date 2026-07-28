@@ -3,10 +3,18 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import {
   ASAAS_FAILED_EVENTS,
   ASAAS_PAID_EVENTS,
+  fetchCharge,
   verifyWebhookToken,
 } from "@/lib/asaas";
 import { asaasWebhookSchema } from "@/lib/validations/payment";
 import { createNotification } from "@/lib/utils/notifications";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
+
+/**
+ * Pix amounts are small and stored as numeric; a cent of float drift shouldn't
+ * block a legitimate unlock, but anything larger should.
+ */
+const AMOUNT_TOLERANCE = 0.01;
 
 /**
  * Asaas webhook — the only path that may set `matches.unlocked_at`.
@@ -19,6 +27,16 @@ import { createNotification } from "@/lib/utils/notifications";
  * `/api/webhooks/asaas`, with an access token matching ASAAS_WEBHOOK_TOKEN.
  */
 export async function POST(request: NextRequest) {
+  // The shared token is the only authentication here, so bound how fast it can
+  // be guessed. Set well above Asaas's real delivery + retry rate.
+  const limit = await rateLimit("webhookByIp", clientIp(request.headers));
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "Muitas requisições" },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfter) } }
+    );
+  }
+
   if (!verifyWebhookToken(request.headers.get("asaas-access-token"))) {
     // Deliberately terse: don't tell a prober whether the token or the
     // payload was the problem.
@@ -47,7 +65,7 @@ export async function POST(request: NextRequest) {
   // externalReference, which is only a fallback for charges created elsewhere.
   const { data: paymentRow } = await admin
     .from("payments")
-    .select("id, match_id, payer_id, status, kind")
+    .select("id, match_id, payer_id, status, kind, amount_total")
     .eq("psp_charge_id", payment.id)
     .maybeSingle();
 
@@ -80,6 +98,39 @@ export async function POST(request: NextRequest) {
   // the same charge, and retries on any non-2xx.
   if (paymentRow.status === "succeeded") {
     return NextResponse.json({ received: true, duplicate: true });
+  }
+
+  // Confirm what was actually paid before unlocking anything.
+  //
+  // Until now this route took "PAYMENT_RECEIVED" at face value and never looked
+  // at the amount. The connection fee is the only revenue LevAí has, so an
+  // event referring to a charge worth one centavo must not open a R$ 29,90
+  // contact. Ask Asaas over the authenticated API instead of trusting the
+  // unsigned payload; if that call fails, fall back to the payload value rather
+  // than dropping a real payment on the floor.
+  const expected = Number(paymentRow.amount_total ?? 0);
+  let paidValue: number | null = null;
+
+  try {
+    const charge = await fetchCharge(payment.id);
+    paidValue = Number(charge.value);
+  } catch (err) {
+    console.error("asaas webhook: could not read charge back", err);
+    paidValue = payment.value != null ? Number(payment.value) : null;
+  }
+
+  if (paidValue == null || !Number.isFinite(paidValue)) {
+    console.error("asaas webhook: no usable amount for charge", payment.id);
+    // 500 so Asaas retries — this is our failure, not a bad event.
+    return NextResponse.json({ error: "Indisponível" }, { status: 500 });
+  }
+
+  if (expected > 0 && paidValue + AMOUNT_TOLERANCE < expected) {
+    console.error(
+      `asaas webhook: underpaid charge ${payment.id} — expected ${expected}, got ${paidValue}`
+    );
+    // 200 so Asaas stops retrying: replaying it won't change the amount.
+    return NextResponse.json({ received: true, underpaid: true });
   }
 
   const now = new Date().toISOString();
