@@ -1,11 +1,12 @@
 import "server-only";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 /**
  * Asaas client (Pix) — connection-fee model.
  *
  * The platform charges a one-off "taxa de conexão" to unlock the other
  * party's contact info on a match. Money never flows between users through
- * Flydrop: the delivery payment itself is settled directly between them,
+ * LevAí: the delivery payment itself is settled directly between them,
  * off-platform. That keeps us out of third-party fund custody entirely and
  * avoids the CNPJ requirement that blocks Stripe Connect payouts to PF here.
  *
@@ -77,7 +78,7 @@ export interface AsaasPixQrCode {
 }
 
 /**
- * Find or create the Asaas customer for a Flydrop user. Asaas requires a
+ * Find or create the Asaas customer for a LevAí user. Asaas requires a
  * customer on every charge; we key it by our own user id via externalReference
  * so repeat charges reuse the same record.
  */
@@ -131,29 +132,59 @@ export async function createPixCharge(params: {
     }),
   });
 
-  const qr = await asaasJson<AsaasPixQrCode>(
-    `/payments/${charge.id}/pixQrCode`
-  );
+  const qr = await fetchPixQrCode(charge.id);
 
   return { charge, qr };
 }
 
 /**
- * Constant-time-ish comparison of the webhook token. Asaas doesn't sign its
+ * Lê de novo o QR Pix de uma cobrança que já existe.
+ *
+ * `payments` guarda só o `pix_qr_payload` (o copia e cola), não a imagem. Ao
+ * reaproveitar uma cobrança ainda válida é preciso pedir o `encodedImage` ao
+ * Asaas outra vez, senão o segundo clique devolve uma cobrança sem QR.
+ */
+export async function fetchPixQrCode(
+  chargeId: string
+): Promise<AsaasPixQrCode> {
+  return asaasJson<AsaasPixQrCode>(`/payments/${chargeId}/pixQrCode`);
+}
+
+/**
+ * Read a charge back from Asaas.
+ *
+ * The webhook payload is not signed, so its `value` is only as trustworthy as
+ * the shared token. Re-reading the charge over the authenticated API turns
+ * "the request claims R$ 9,90 was paid" into "Asaas says R$ 9,90 was paid",
+ * which is the difference that matters on the unlock path.
+ */
+export async function fetchCharge(chargeId: string): Promise<{
+  id: string;
+  status: string;
+  value: number;
+}> {
+  return asaasJson<AsaasPayment>(`/payments/${encodeURIComponent(chargeId)}`);
+}
+
+/**
+ * Constant-time comparison of the webhook token. Asaas doesn't sign its
  * payloads (as of v3) — it echoes back a shared token in the
  * `asaas-access-token` header, so that header is the only thing standing
  * between us and a forged "payment confirmed" event.
+ *
+ * Compares SHA-256 digests rather than the raw strings. Two reasons: digests
+ * are always 32 bytes, so timingSafeEqual never throws on a length mismatch and
+ * the comparison can't leak the token's length by returning early; and the
+ * per-byte timing of the comparison reveals nothing about the token itself,
+ * only about its hash.
  */
 export function verifyWebhookToken(received: string | null): boolean {
   const expected = process.env.ASAAS_WEBHOOK_TOKEN;
   if (!expected || !received) return false;
-  if (expected.length !== received.length) return false;
 
-  let mismatch = 0;
-  for (let i = 0; i < expected.length; i++) {
-    mismatch |= expected.charCodeAt(i) ^ received.charCodeAt(i);
-  }
-  return mismatch === 0;
+  const a = createHash("sha256").update(expected, "utf8").digest();
+  const b = createHash("sha256").update(received, "utf8").digest();
+  return timingSafeEqual(a, b);
 }
 
 /** Asaas events that mean "the money is in". */

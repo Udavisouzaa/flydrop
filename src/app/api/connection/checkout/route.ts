@@ -1,8 +1,21 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
-import { createPixCharge, findOrCreateCustomer, isAsaasConfigured } from "@/lib/asaas";
+import {
+  createPixCharge,
+  fetchPixQrCode,
+  findOrCreateCustomer,
+  isAsaasConfigured,
+} from "@/lib/asaas";
 import { connectionCheckoutSchema } from "@/lib/validations/payment";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
+
+function tooManyRequests(retryAfter: number) {
+  return NextResponse.json(
+    { error: "Muitas tentativas. Aguarde um pouco e tente de novo." },
+    { status: 429, headers: { "Retry-After": String(retryAfter) } }
+  );
+}
 
 /**
  * Creates (or reuses) a Pix charge for a match's connection fee.
@@ -20,6 +33,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Checked before authentication so an unauthenticated flood is cheap to
+  // reject — it never reaches Supabase.
+  const ipLimit = await rateLimit("checkoutByIp", clientIp(request.headers));
+  if (!ipLimit.ok) return tooManyRequests(ipLimit.retryAfter);
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -27,6 +45,11 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
+
+  // Per-user is the limit that actually bounds spend: each charge that isn't
+  // reused is a live Asaas API call and a row in `payments`.
+  const userLimit = await rateLimit("checkoutByUser", user.id);
+  if (!userLimit.ok) return tooManyRequests(userLimit.retryAfter);
 
   const parsed = connectionCheckoutSchema.safeParse(
     await request.json().catch(() => null)
@@ -103,8 +126,25 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (reusable?.pix_qr_payload) {
+    // A imagem do QR não fica em `payments`, só o copia e cola. Sem buscá-la
+    // de novo, o segundo clique devolvia uma cobrança sem `encodedImage` e a
+    // tela sumia com o QR sem dizer por quê.
+    //
+    // Se o Asaas não responder, seguimos com o payload assim mesmo: é ele que
+    // efetivamente paga a conta, e o paywall já sabe exibir o copia e cola
+    // sozinho. Uma falha aqui não pode derrubar um checkout que já é válido.
+    let encodedImage: string | undefined;
+    if (reusable.psp_charge_id) {
+      try {
+        ({ encodedImage } = await fetchPixQrCode(reusable.psp_charge_id));
+      } catch (err) {
+        console.error("connection checkout: could not refetch Pix QR", err);
+      }
+    }
+
     return NextResponse.json({
       payload: reusable.pix_qr_payload,
+      encodedImage,
       expiresAt: reusable.pix_expires_at,
       reused: true,
     });
@@ -120,7 +160,7 @@ export async function POST(request: NextRequest) {
   try {
     const customerId = await findOrCreateCustomer({
       userId: user.id,
-      name: profile?.full_name ?? "Usuário Flydrop",
+      name: profile?.full_name ?? "Usuário LevAí",
       email: user.email ?? "",
     });
 
@@ -128,7 +168,7 @@ export async function POST(request: NextRequest) {
       customerId,
       matchId: match_id,
       value: fee,
-      description: `Flydrop — taxa de conexão (${order.title})`,
+      description: `LevAí — taxa de conexão (${order.title})`,
     });
 
     const { error: insertError } = await admin.from("payments").insert({
