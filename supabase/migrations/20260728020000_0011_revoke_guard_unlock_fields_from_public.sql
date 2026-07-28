@@ -1,0 +1,70 @@
+-- Migration 0011: revogar de verdade o EXECUTE em guard_unlock_fields()
+-- STATUS: PENDING APPROVAL — revisar antes de aplicar no projeto de produção.
+--
+-- A 20260725205138_harden_profiles_public_grants.sql tentou fechar isto:
+--
+--     revoke execute on function public.guard_unlock_fields() from anon, authenticated;
+--
+-- O comando roda sem erro, mas não tira o privilégio. Postgres concede EXECUTE
+-- a PUBLIC por padrão em toda função nova, e todo role herda o que PUBLIC tem.
+-- Revogar de `anon` e `authenticated` remove uma concessão nominal que nunca
+-- existiu, enquanto a concessão real — a de PUBLIC — continua de pé.
+--
+-- Confirmado por leitura de pg_proc.proacl em produção:
+--
+--     {=X/postgres,postgres=X/postgres,service_role=X/postgres}
+--      ^^^^^^^^^^
+--      nome de role vazio antes do "=" é PUBLIC. Ainda com X (EXECUTE).
+--
+-- É o mesmo defeito que a 0007 já havia diagnosticado e corrigido para
+-- handle_new_review() e increment_completion_stats(); esta função ficou de
+-- fora porque foi criada depois, numa migration que não seguiu o padrão. Da
+-- 0007 em diante toda revogação nomeia `PUBLIC` explicitamente — 0008, 0009 e
+-- 0010 já estão certas. Esta é a última pendente.
+--
+-- Por que a mesma migration acertou a linha de cima (a view profiles_public) e
+-- errou esta: tabelas e views não recebem grant para PUBLIC por padrão, só
+-- funções. Naquele caso `revoke all ... from anon, authenticated` bastava
+-- porque os privilégios vinham dos default privileges do Supabase, concedidos
+-- nominalmente a esses dois roles. Aqui não.
+--
+-- IMPACTO PRÁTICO: baixo, e é honesto dizer. guard_unlock_fields() retorna
+-- `trigger`, e o PostgREST não expõe função de trigger em /rest/v1/rpc — uma
+-- chamada direta morre em "trigger functions can only be called as triggers".
+-- Ninguém está explorando isto hoje. O que a correção fecha é a distância
+-- entre o que a migration anterior diz ter feito e o que ela fez: o advisor do
+-- Supabase continua acusando a função, e um `revoke` que não revoga é pior que
+-- nenhum, porque cria a impressão de que a superfície já foi checada.
+--
+-- A função em si está correta e não é alterada aqui. Ela compara
+-- `current_setting('request.jwt.claim.role')` em vez de `current_user`, que é o
+-- certo para uma função SECURITY DEFINER: dentro dela current_user já virou o
+-- dono (postgres) e a checagem nunca casaria com 'service_role'.
+
+REVOKE ALL ON FUNCTION public.guard_unlock_fields() FROM PUBLIC, anon, authenticated;
+
+-- ===========================================================================
+-- Nota sobre o ERROR "security_definer_view" em public.profiles_public
+-- ===========================================================================
+--
+-- O advisor do Supabase marca essa view como ERROR por causa do
+-- `security_invoker = off`. Não está sendo mexido aqui, de propósito, e o
+-- registro fica para quem for "consertar" depois:
+--
+-- A view existe justamente para rodar como o dono. A 20260725182250 fechou o
+-- SELECT público em public.profiles (a policy virou `auth.uid() = id`) porque
+-- a tabela tem `phone`, que é o dado que a taxa de conexão existe para vender.
+-- profiles_public é a projeção sem telefone que a busca e as listagens
+-- consomem.
+--
+-- Ligar `security_invoker = on` faria a view cair na RLS de profiles e cada
+-- pessoa passaria a enxergar só o próprio perfil através dela — nome, avatar e
+-- reputação da outra parte sumiriam do app inteiro. Para reverter isso seria
+-- preciso uma policy de SELECT liberando todas as linhas de profiles, e RLS é
+-- por linha, não por coluna: essa policy devolveria o acesso ao telefone e
+-- reabriria exatamente o furo que a 20260725182250 fechou.
+--
+-- Ou seja: view SECURITY DEFINER como projeção de colunas controlada é o
+-- padrão correto para este caso, e a escrita através dela já está bloqueada
+-- por grant (revoke all + grant select, na 20260725205138). O ERROR do advisor
+-- é esperado e aceito.
