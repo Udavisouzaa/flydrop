@@ -382,11 +382,6 @@ export async function confirmDropoff(formData: FormData) {
     .update({
       requester_confirmed_dropoff: true,
       requester_confirmed_dropoff_at: new Date().toISOString(),
-      // Sent for pre-0009 databases. Once 0009 is applied the trigger derives
-      // 'completed' from the two confirmation flags and ignores this.
-      ...(isComplete
-        ? { status: "completed", completed_at: new Date().toISOString() }
-        : {}),
     })
     .eq("id", matchId)
     .eq("requester_confirmed_dropoff", false);
@@ -397,13 +392,12 @@ export async function confirmDropoff(formData: FormData) {
   }
 
   if (isComplete) {
-    // Bump completion stats for both parties (best-effort, ignore errors).
-    // Migration 0008 moves this to a trigger and makes the RPC idempotent; the
-    // call stays until that ships so the counters keep working either way.
-    await supabase.rpc("increment_completion_stats", {
-      traveler_id: match.travelerId,
-      requester_id: match.requesterId,
-    });
+    // Nothing to write here about status or completion counters. Migration 0009
+    // derives 'completed' from the two confirmation flags in a BEFORE trigger,
+    // and 0008's on_match_completed then recomputes trips_completed and
+    // orders_completed from `matches` for both parties. Sending them from here
+    // would be discarded at best; the old increment_completion_stats RPC call
+    // is gone for the same reason, and migration 0012 drops the function.
 
     // No escrow release here: under the connection-fee model the platform
     // only charges to unlock contact, and the delivery payment itself happens
