@@ -1,5 +1,7 @@
 -- Migration 0011: revogar de verdade o EXECUTE em guard_unlock_fields()
--- STATUS: PENDING APPROVAL — revisar antes de aplicar no projeto de produção.
+-- STATUS: APLICADA em 2026-07-29 09:08 UTC no projeto de produção (mmylufjhugbhunofqtzp).
+-- Confirmado depois de aplicar: pg_proc.proacl de guard_unlock_fields() passou a
+-- ser {postgres=X/postgres,service_role=X/postgres} — a entrada de PUBLIC sumiu.
 --
 -- A 20260725205138_harden_profiles_public_grants.sql tentou fechar isto:
 --

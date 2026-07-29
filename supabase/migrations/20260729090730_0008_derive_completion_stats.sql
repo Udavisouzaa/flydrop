@@ -1,5 +1,5 @@
 -- Migration 0008: Derive completion stats + lock down reputation/KYC columns
--- STATUS: PENDING APPROVAL - review before applying to production Supabase project (mmylufjhugbhunofqtzp)
+-- STATUS: APPLIED 2026-07-29 09:07 UTC to the production project (mmylufjhugbhunofqtzp).
 --
 -- Verified against the live database on 2026-07-26 (read-only inspection).
 --

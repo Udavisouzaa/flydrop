@@ -1,5 +1,5 @@
 -- Migration 0009: taxa de conexão e ciclo de vida do match viram server-side
--- STATUS: PENDING APPROVAL — revisar antes de aplicar no projeto de produção.
+-- STATUS: APLICADA em 2026-07-29 09:08 UTC no projeto de produção (mmylufjhugbhunofqtzp).
 --
 -- Contexto: hoje a única RLS de escrita em `matches` é
 --   "Match participants can update their matches" USING (caller é uma das partes)

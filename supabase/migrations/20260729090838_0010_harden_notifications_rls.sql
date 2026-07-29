@@ -1,5 +1,5 @@
 -- Migration 0010: fechar a RLS de `notifications`
--- STATUS: PENDING APPROVAL — revisar antes de aplicar no projeto de produção.
+-- STATUS: APLICADA em 2026-07-29 09:08 UTC no projeto de produção (mmylufjhugbhunofqtzp).
 --
 -- Contexto: a 0005 criou a tabela com três policies, e duas delas estão
 -- abertas. O app passou a escrever nessa tabela de verdade agora que o sino do
