@@ -1,0 +1,40 @@
+-- Migration 0012: derrubar a RPC increment_completion_stats
+-- STATUS: PENDING — NÃO APLICAR ANTES DO DEPLOY.
+--
+-- Esta é a etapa 3 da ordem de deploy que a 0008 documentou:
+--
+--   1. 0008                 — recompute + trigger + lockdown das colunas   [FEITA 29/07]
+--   2. deploy da aplicação  — tirar a chamada da RPC do confirmDropoff     [PENDENTE]
+--   3. esta migration       — derrubar a RPC sem referências
+--
+-- **Aplicar esta migration antes do deploy quebra a produção**: o código que
+-- está no ar hoje ainda chama `increment_completion_stats` no fim do
+-- confirmDropoff, e a chamada passaria a estourar "function does not exist".
+-- A confirmação de entrega em si sobreviveria (o erro vem depois do UPDATE),
+-- mas a notificação "Entrega confirmada!" para o viajante não chegaria.
+--
+-- Confirme antes de aplicar:
+--
+--   git grep increment_completion_stats -- src     # deve não retornar nada
+--   e o commit que remove a chamada precisa estar em produção, não só na main.
+--
+-- POR QUE DERRUBAR
+--
+-- A função virou casca. Desde a 0008 ela não incrementa nada: só valida o
+-- chamador e delega para recalc_completion_stats, que o trigger
+-- on_match_completed já chama sozinho quando o match vira 'completed'. Manter
+-- a RPC significa manter uma função SECURITY DEFINER exposta em
+-- /rest/v1/rpc/increment_completion_stats para todo usuário logado — é o
+-- último WARN evitável do advisor de segurança do Supabase (os outros três são
+-- intencionais: get_unlocked_contact e can_notify_about_match precisam mesmo
+-- de EXECUTE para `authenticated`, e profiles_public é SECURITY DEFINER de
+-- propósito, senão o telefone volta a vazar).
+--
+-- Não há perda de comportamento: os contadores continuam derivados de
+-- `matches` pelo trigger, que é a única fonte da verdade desde a 0008.
+--
+-- O nome dos argumentos importa no DROP porque a assinatura é (uuid, uuid) e
+-- existe só esta sobrecarga; se um dia houver outra, este DROP falha explícito
+-- em vez de derrubar a errada.
+
+DROP FUNCTION IF EXISTS public.increment_completion_stats(UUID, UUID);
