@@ -2,6 +2,7 @@ import Link from "next/link";
 import { login } from "./actions";
 import { MotionForm, MotionItem, MotionButton, MotionBanner } from "@/components/motion";
 import { AuthShell, AuthField } from "@/components/auth-shell";
+import { GoogleButton } from "@/components/google-button";
 
 /**
  * Notices this page is willing to show, keyed by a short code.
@@ -75,6 +76,16 @@ export default async function LoginPage({
           Entrar
         </MotionButton>
       </MotionForm>
+
+      <MotionItem className="my-6 flex items-center gap-3">
+        <span className="h-px flex-1 bg-glass-edge" />
+        <span className="text-muted-foreground text-xs">ou continue com</span>
+        <span className="h-px flex-1 bg-glass-edge" />
+      </MotionItem>
+
+      <MotionItem>
+        <GoogleButton next={safeNext} />
+      </MotionItem>
 
       <MotionItem className="mt-6 text-center text-sm">
         <span className="text-muted-foreground">Ainda não tem conta? </span>
