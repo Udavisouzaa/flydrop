@@ -14,10 +14,10 @@
  * version did this person agree to, and when" — which is what LGPD Art. 8 §1
  * requires of the controller.
  */
-export const TERMS_VERSION = "2026-07-28";
+export const TERMS_VERSION = "2026-07-30";
 
 /** Last substantive edit to /privacidade and /termos. */
-export const LEGAL_UPDATED_AT = "28 de julho de 2026";
+export const LEGAL_UPDATED_AT = "30 de julho de 2026";
 
 /**
  * Contato do controlador para pedidos do titular (LGPD Art. 41 §1).
@@ -25,12 +25,13 @@ export const LEGAL_UPDATED_AT = "28 de julho de 2026";
  * ⚠️ ANTES DE ABRIR AO PÚBLICO: esta caixa precisa existir e ser lida. O
  * art. 41 §1 obriga a divulgar um contato do encarregado, e o art. 18 dá ao
  * titular prazo de resposta — um endereço que não recebe transforma o canal de
- * direitos numa parede. O domínio levai.app ainda não está registrado.
+ * direitos numa parede. O domínio malotex.com.br já foi comprado (30/07), mas
+ * a caixa ainda não foi criada.
  *
  * Enquanto isso, todo lugar que mostra este e-mail também mostra o WhatsApp de
  * suporte, que funciona de verdade — o canal nunca fica sem saída.
  */
-export const DPO_EMAIL = "privacidade@levai.app";
+export const DPO_EMAIL = "privacidade@malotex.com.br";
 
 /** Support channel shown across the app. */
 export const SUPPORT_WHATSAPP = "5548992084726";

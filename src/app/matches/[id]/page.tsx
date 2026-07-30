@@ -100,7 +100,7 @@ export default async function MatchDetailPage({
           {new Date(m.trips.departure_date).toLocaleDateString("pt-BR")}
         </p>
         <p className="text-muted-foreground mt-2 flex flex-wrap items-center gap-2 text-sm">
-          <span>Com: {otherProfile?.full_name ?? "Usuário LevAí"}</span>
+          <span>Com: {otherProfile?.full_name ?? "Usuário Malotex"}</span>
           {otherProfile?.avg_rating != null && (
             <span>
               ⭐ {Number(otherProfile.avg_rating).toFixed(1)}

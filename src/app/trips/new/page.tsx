@@ -41,7 +41,7 @@ export default async function NewTripPage({
         </Link>
         <div className="flex items-center gap-2">
           <span aria-hidden className="bg-brand size-6 rounded-full" />
-          <span className="font-bold tracking-tight">LevAí</span>
+          <span className="font-bold tracking-tight">Malotex</span>
         </div>
       </header>
 

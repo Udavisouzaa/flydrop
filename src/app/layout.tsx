@@ -17,10 +17,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LevAí — sua encomenda vai com quem já está indo",
+  title: "Malotex — sua encomenda vai com quem já está indo",
   description:
     "Conectamos quem precisa de um produto de outra cidade com viajantes que têm espaço sobrando na mala.",
-  applicationName: "LevAí",
+  applicationName: "Malotex",
 };
 
 /* App mobile-first: sem zoom acidental e respeitando o recorte da tela. */

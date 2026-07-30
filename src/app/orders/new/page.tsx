@@ -27,7 +27,7 @@ export default async function NewOrderPage({
       <div className="relative flex w-full flex-col justify-between bg-neutral-950 px-8 py-12 text-white lg:sticky lg:top-0 lg:h-screen lg:w-[40%] lg:px-16 lg:py-20">
         <div>
           <Link href="/" className="mb-12 inline-block font-black text-xl tracking-tighter">
-            LevAí
+            Malotex
           </Link>
           <h1 className="mt-8 text-4xl font-black leading-tight tracking-tight sm:text-5xl">
             O que você quer que a gente traga?

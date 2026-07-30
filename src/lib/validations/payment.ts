@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Connection-fee model: the only charge LevAí makes is the one-off fee to
+ * Connection-fee model: the only charge Malotex makes is the one-off fee to
  * unlock a match's contact info. The client sends nothing but the match id —
  * the amount always comes from `matches.connection_fee` server-side, so a
  * tampered request can't lower the price.

@@ -4,9 +4,9 @@ import { LegalShell, LegalSection, LegalList } from "@/components/legal-shell";
 import { DPO_EMAIL, SUPPORT_WHATSAPP, SUPPORT_WHATSAPP_DISPLAY } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Política de Privacidade — LevAí",
+  title: "Política de Privacidade — Malotex",
   description:
-    "Quais dados o LevAí trata, por quê, com quem compartilha e como você exerce seus direitos sob a LGPD.",
+    "Quais dados o Malotex trata, por quê, com quem compartilha e como você exerce seus direitos sob a LGPD.",
 };
 
 /**
@@ -26,7 +26,7 @@ export default function PrivacidadePage() {
     >
       <LegalSection n={1} title="Quem é o controlador">
         <p>
-          O <strong>LevAí</strong> é o controlador dos dados pessoais tratados neste
+          O <strong>Malotex</strong> é o controlador dos dados pessoais tratados neste
           aplicativo, nos termos da Lei nº 13.709/2018 (<strong>LGPD</strong>).
         </p>
         <p>
@@ -209,7 +209,7 @@ export default function PrivacidadePage() {
         <LegalList
           items={[
             "Todo o tráfego é criptografado em trânsito (HTTPS obrigatório).",
-            "Senhas são guardadas apenas como hash — ninguém no LevAí consegue ler a sua.",
+            "Senhas são guardadas apenas como hash — ninguém no Malotex consegue ler a sua.",
             "O banco usa isolamento por linha: cada consulta só enxerga o que aquele usuário pode ver.",
             "Contato de terceiros é liberado pelo servidor, nunca pelo navegador — não dá para revelar um telefone mexendo no front-end.",
             "Limites de requisição em login, cadastro, pagamento e exportação, contra força bruta e abuso.",
@@ -224,7 +224,7 @@ export default function PrivacidadePage() {
 
       <LegalSection n={9} title="Menores de idade">
         <p>
-          O LevAí é para maiores de 18 anos. Não tratamos dados de crianças e adolescentes
+          O Malotex é para maiores de 18 anos. Não tratamos dados de crianças e adolescentes
           conscientemente. Se descobrirmos uma conta nessa situação, ela é removida. Se você é
           responsável e identificou uma, fale com a gente que agimos na hora.
         </p>

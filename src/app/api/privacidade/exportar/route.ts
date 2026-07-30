@@ -175,7 +175,7 @@ export async function GET() {
       termos_versao_atual: TERMS_VERSION,
     },
     sobre:
-      "Cópia dos dados pessoais tratados pelo LevAí sobre você, nos termos do art. 18, II e V da Lei 13.709/2018 (LGPD). Contém apenas dados seus: conteúdo de terceiros foi omitido.",
+      "Cópia dos dados pessoais tratados pelo Malotex sobre você, nos termos do art. 18, II e V da Lei 13.709/2018 (LGPD). Contém apenas dados seus: conteúdo de terceiros foi omitido.",
     dados,
     ...(indisponivel.length > 0
       ? {
@@ -192,7 +192,7 @@ export async function GET() {
     status: 200,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Content-Disposition": `attachment; filename="levai-meus-dados-${date}.json"`,
+      "Content-Disposition": `attachment; filename="malotex-meus-dados-${date}.json"`,
       // Belt and braces: next.config.ts already sets no-store on /api/*, but
       // this response is the single most sensitive body the app ever emits.
       "Cache-Control": "no-store, no-cache, must-revalidate, private",

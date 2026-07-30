@@ -126,8 +126,8 @@ export function Header() {
           data-testid="header-logo"
           className="flex items-center text-2xl font-bold tracking-tighter"
         >
-          <span className="text-black dark:text-white">Lev</span>
-          <span className="text-brand-ink">Aí</span>
+          <span className="text-black dark:text-white">Malo</span>
+          <span className="text-brand-ink">tex</span>
         </Link>
 
         <div className="hidden items-center gap-6 md:flex">

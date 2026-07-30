@@ -64,7 +64,7 @@ export default async function DashboardPage() {
             {firstName ? `Olá, ${firstName}` : "Olá"}
           </p>
           <p className="text-xl font-black tracking-tight">
-            Lev<span className="text-brand-ink">Aí</span>
+            Malo<span className="text-brand-ink">tex</span>
           </p>
         </div>
         {/*

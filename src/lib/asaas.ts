@@ -6,7 +6,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
  *
  * The platform charges a one-off "taxa de conexão" to unlock the other
  * party's contact info on a match. Money never flows between users through
- * LevAí: the delivery payment itself is settled directly between them,
+ * Malotex: the delivery payment itself is settled directly between them,
  * off-platform. That keeps us out of third-party fund custody entirely and
  * avoids the CNPJ requirement that blocks Stripe Connect payouts to PF here.
  *
@@ -78,7 +78,7 @@ export interface AsaasPixQrCode {
 }
 
 /**
- * Find or create the Asaas customer for a LevAí user. Asaas requires a
+ * Find or create the Asaas customer for a Malotex user. Asaas requires a
  * customer on every charge; we key it by our own user id via externalReference
  * so repeat charges reuse the same record.
  */

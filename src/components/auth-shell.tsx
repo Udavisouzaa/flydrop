@@ -21,7 +21,7 @@ export function AuthShell({
           to go: it is decoration, and now it behaves like decoration.
         */}
         <p className="mb-6 block text-center text-3xl font-black tracking-tighter">
-          Lev<span className="text-brand-ink">Aí</span>
+          Malo<span className="text-brand-ink">tex</span>
         </p>
 
         <div className="glass rounded-3xl p-6 sm:p-7" data-testid="auth-shell">

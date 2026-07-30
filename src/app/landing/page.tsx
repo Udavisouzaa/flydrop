@@ -358,7 +358,7 @@ function SmartPhoneMockup() {
           🤖
         </div>
         <div>
-          <div className="text-sm leading-tight font-bold">LevAí Bot</div>
+          <div className="text-sm leading-tight font-bold">Malotex Bot</div>
           <div className="text-[10px] leading-tight opacity-80">
             {t("chat.online")}
           </div>

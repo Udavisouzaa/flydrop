@@ -26,7 +26,7 @@ const DICT = {
     "hero.title1": "Sua bagagem",
     "hero.title2": "agora tem valor.",
     "hero.sub":
-      "O LevAí conecta quem precisa de um produto de outra cidade com viajantes que têm espaço sobrando na mala.",
+      "O Malotex conecta quem precisa de um produto de outra cidade com viajantes que têm espaço sobrando na mala.",
     "hero.cta1": "Preciso de um produto",
     "hero.cta2": "Vou viajar, tenho espaço",
     "hero.scroll": "Continue rolando ↓",
@@ -85,7 +85,7 @@ const DICT = {
     "hero.title1": "Your luggage",
     "hero.title2": "is now worth money.",
     "hero.sub":
-      "LevAí connects people who need a product from another city with travellers who have spare room in their bag.",
+      "Malotex connects people who need a product from another city with travellers who have spare room in their bag.",
     "hero.cta1": "I need a product",
     "hero.cta2": "I'm travelling, I have room",
     "hero.scroll": "Keep scrolling ↓",

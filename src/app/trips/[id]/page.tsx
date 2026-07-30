@@ -63,7 +63,7 @@ export default async function TripDetailPage({
             : ""}
         </p>
         <p className="text-muted-foreground mt-1 text-sm">
-          Viajante: {travelerProfile?.full_name ?? "Usuário LevAí"}
+          Viajante: {travelerProfile?.full_name ?? "Usuário Malotex"}
         </p>
         {t.notes && <p className="mt-4 text-sm/relaxed">{t.notes}</p>}
       </section>

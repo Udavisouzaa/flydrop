@@ -30,7 +30,7 @@ export const TESTID_REGISTRY = {
     routes: ["/landing"],
   },
   "header-logo": {
-    role: "Wordmark LevAí, volta para /",
+    role: "Wordmark Malotex, volta para /",
     source: "src/components/ui/header.tsx",
     routes: ["/landing"],
   },

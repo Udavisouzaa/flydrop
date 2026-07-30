@@ -7,7 +7,7 @@ import { DPO_EMAIL } from "@/lib/legal";
 import { deleteAccount } from "./actions";
 
 export const metadata: Metadata = {
-  title: "Meus dados — LevAí",
+  title: "Meus dados — Malotex",
   description: "Baixe uma cópia dos seus dados ou exclua sua conta.",
   // Nothing here should ever be indexed or previewed.
   robots: { index: false, follow: false },

@@ -16,7 +16,7 @@ export default async function WalletPage() {
 
   const supabase = await createClient();
 
-  // A única cobrança do LevAí é a taxa de conexão (modelo sem custódia: o
+  // A única cobrança do Malotex é a taxa de conexão (modelo sem custódia: o
   // pagamento da entrega é acertado direto entre as duas pessoas, fora do app).
   // Por isso a carteira lista taxas pagas, não saldo a receber.
   const { data } = await supabase
@@ -50,7 +50,7 @@ export default async function WalletPage() {
       <div className="glass mt-4 flex gap-3 rounded-2xl p-4">
         <Info aria-hidden className="text-brand-ink mt-0.5 size-5 shrink-0" />
         <p className="text-muted-foreground text-sm/relaxed">
-          O LevAí só cobra a taxa de conexão. O valor do produto e da entrega
+          O Malotex só cobra a taxa de conexão. O valor do produto e da entrega
           você combina e paga <strong className="text-foreground">direto</strong>{" "}
           com a outra pessoa — o app não guarda nem repassa esse dinheiro.
         </p>

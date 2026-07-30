@@ -6,8 +6,8 @@ import { createClient } from "@/utils/supabase/server";
  *
  * Server Actions get this check from Next.js for free; route handlers do not.
  * This one is reachable by any page on the internet with a
- * `<form action="https://levai.app/auth/signout" method="post">` and an
- * autosubmit, which logs the visitor out of LevAí without their consent. Not a
+ * `<form action="https://malotex.com.br/auth/signout" method="post">` and an
+ * autosubmit, which logs the visitor out of Malotex without their consent. Not a
  * breach — no data moves — but a site that can log you out at will can also
  * keep you logged out, and the fix is three lines.
  *

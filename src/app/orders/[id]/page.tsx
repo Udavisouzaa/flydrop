@@ -59,7 +59,7 @@ export default async function OrderDetailPage({
             : ""}
         </p>
         <p className="text-muted-foreground mt-1 text-sm">
-          Solicitante: {requesterProfile?.full_name ?? "Usuário LevAí"}
+          Solicitante: {requesterProfile?.full_name ?? "Usuário Malotex"}
         </p>
         {o.description && <p className="mt-4 text-sm/relaxed">{o.description}</p>}
         {o.budget && (

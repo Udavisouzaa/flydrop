@@ -4,9 +4,9 @@ import { LegalShell, LegalSection, LegalList } from "@/components/legal-shell";
 import { DPO_EMAIL, SUPPORT_WHATSAPP, SUPPORT_WHATSAPP_DISPLAY } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Termos de Uso — LevAí",
+  title: "Termos de Uso — Malotex",
   description:
-    "As regras de uso do LevAí: o que a plataforma faz, o que não faz, e de quem é cada responsabilidade.",
+    "As regras de uso do Malotex: o que a plataforma faz, o que não faz, e de quem é cada responsabilidade.",
 };
 
 /**
@@ -22,7 +22,7 @@ export default function TermosPage() {
     >
       <LegalSection n={1} title="Quem somos e o que fazemos">
         <p>
-          O <strong>LevAí</strong> é uma plataforma de intermediação. Colocamos em contato
+          O <strong>Malotex</strong> é uma plataforma de intermediação. Colocamos em contato
           duas pessoas: alguém que vai viajar e tem espaço sobrando na mala, e alguém que
           precisa de um produto de outra cidade.
         </p>
@@ -35,7 +35,7 @@ export default function TermosPage() {
 
       <LegalSection n={2} title="O que você paga, e só isso">
         <p>
-          A única cobrança do LevAí é a <strong>taxa de conexão</strong>: um valor único, pago
+          A única cobrança do Malotex é a <strong>taxa de conexão</strong>: um valor único, pago
           uma vez por match aceito, que libera o contato entre as duas pessoas.
         </p>
         <LegalList
@@ -55,7 +55,7 @@ export default function TermosPage() {
         />
         <p>
           <strong>O preço do produto e qualquer valor pelo frete são acertados diretamente
-          entre vocês dois, fora do aplicativo.</strong> O LevAí não recebe, não guarda, não
+          entre vocês dois, fora do aplicativo.</strong> O Malotex não recebe, não guarda, não
           repassa e não garante esse dinheiro. Não há caução, custódia ou intermediação
           financeira da entrega.
         </p>
@@ -93,7 +93,7 @@ export default function TermosPage() {
           responsabilidade pelo produto, pelo pagamento dele e pela entrega é{" "}
           <strong>exclusivamente das duas pessoas envolvidas</strong>.
         </p>
-        <p>O LevAí não responde por:</p>
+        <p>O Malotex não responde por:</p>
         <LegalList
           items={[
             "Produto errado, avariado, faltando, falsificado ou fora da descrição.",
@@ -111,7 +111,7 @@ export default function TermosPage() {
 
       <LegalSection n={5} title="O que não pode ser levado">
         <p>
-          É <strong>proibido</strong> usar o LevAí para combinar o transporte de:
+          É <strong>proibido</strong> usar o Malotex para combinar o transporte de:
         </p>
         <LegalList
           items={[
@@ -150,7 +150,7 @@ export default function TermosPage() {
             "Assediar, ameaçar, discriminar ou expor outra pessoa.",
             "Publicar anúncio falso, enganoso ou de produto que você não pretende entregar.",
             "Raspar dados, automatizar acessos, testar falhas ou tentar burlar limites da plataforma.",
-            "Usar o LevAí para qualquer atividade ilegal.",
+            "Usar o Malotex para qualquer atividade ilegal.",
           ]}
         />
         <p>
@@ -183,7 +183,7 @@ export default function TermosPage() {
         <p>
           Podemos atualizar estes Termos. Mudanças relevantes são avisadas no aplicativo antes
           de valer, e a data da última atualização fica sempre no topo desta página. Continuar
-          usando o LevAí depois disso significa concordar com a nova versão.
+          usando o Malotex depois disso significa concordar com a nova versão.
         </p>
         <p>
           Fala com a gente:{" "}

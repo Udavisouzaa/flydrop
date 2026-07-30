@@ -1,5 +1,5 @@
 /**
- * Drizzle ORM schema for LevAí.
+ * Drizzle ORM schema for Malotex.
  *
  * Mirrors the PostgreSQL schema managed via Supabase migrations
  * (see /supabase/migrations). This file is the TypeScript source of

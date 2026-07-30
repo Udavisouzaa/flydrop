@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
   try {
     const customerId = await findOrCreateCustomer({
       userId: user.id,
-      name: profile?.full_name ?? "Usuário LevAí",
+      name: profile?.full_name ?? "Usuário Malotex",
       email: user.email ?? "",
     });
 
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
       customerId,
       matchId: match_id,
       value: fee,
-      description: `LevAí — taxa de conexão (${order.title})`,
+      description: `Malotex — taxa de conexão (${order.title})`,
     });
 
     const { error: insertError } = await admin.from("payments").insert({

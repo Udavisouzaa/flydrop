@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
   // Confirm what was actually paid before unlocking anything.
   //
   // Until now this route took "PAYMENT_RECEIVED" at face value and never looked
-  // at the amount. The connection fee is the only revenue LevAí has, so an
+  // at the amount. The connection fee is the only revenue Malotex has, so an
   // event referring to a charge worth one centavo must not open a R$ 29,90
   // contact. Ask Asaas over the authenticated API instead of trusting the
   // unsigned payload; if that call fails, fall back to the payload value rather

@@ -115,7 +115,7 @@ body {
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 
-  /* ---- Marca LevAí ---------------------------------------------------- */
+  /* ---- Marca Malotex ---------------------------------------------------- */
   /* Amarelo: cor dominante. Ações primárias, aba ativa, modo "quero levar".
      O texto por cima é preto — amarelo com branco em cima não tem contraste. */
   --brand: oklch(0.86 0.17 96);
@@ -215,7 +215,7 @@ body {
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 
-  /* ---- Marca LevAí (escuro) -------------------------------------------
+  /* ---- Marca Malotex (escuro) -------------------------------------------
      No escuro o amarelo sobe de luminosidade em vez de descer: sobre preto,
      um amarelo escurecido vira marrom. */
   --brand: oklch(0.88 0.175 96);
