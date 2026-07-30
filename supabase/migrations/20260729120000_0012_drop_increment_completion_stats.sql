@@ -1,11 +1,11 @@
 -- Migration 0012: derrubar a RPC increment_completion_stats
--- STATUS: PENDING — NÃO APLICAR ANTES DO DEPLOY.
+-- STATUS: APLICADA em 30/07/2026 em produção.
 --
 -- Esta é a etapa 3 da ordem de deploy que a 0008 documentou:
 --
 --   1. 0008                 — recompute + trigger + lockdown das colunas   [FEITA 29/07]
---   2. deploy da aplicação  — tirar a chamada da RPC do confirmDropoff     [PENDENTE]
---   3. esta migration       — derrubar a RPC sem referências
+--   2. deploy da aplicação  — tirar a chamada da RPC do confirmDropoff     [FEITA 30/07]
+--   3. esta migration       — derrubar a RPC sem referências               [FEITA 30/07]
 --
 -- **Aplicar esta migration antes do deploy quebra a produção**: o código que
 -- está no ar hoje ainda chama `increment_completion_stats` no fim do
