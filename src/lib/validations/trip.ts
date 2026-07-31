@@ -1,12 +1,17 @@
 import { z } from "zod";
-import { citiesMatch } from "@/lib/utils/cities";
+import { AIRPORT_CODES } from "@/lib/airports";
+
+/** Ver a nota em validations/order.ts — mesma regra, mesmo motivo. */
+const airportCode = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .refine((c) => AIRPORT_CODES.includes(c), "Selecione um aeroporto da lista");
 
 export const createTripSchema = z
   .object({
-    origin_city: z.string().trim().min(2, "Cidade de origem obrigatória"),
-    origin_state: z.string().trim().max(2).optional().or(z.literal("")),
-    destination_city: z.string().trim().min(2, "Cidade de destino obrigatória"),
-    destination_state: z.string().trim().max(2).optional().or(z.literal("")),
+    origin_airport: airportCode,
+    destination_airport: airportCode,
     departure_date: z
       .string()
       .refine((v) => !Number.isNaN(Date.parse(v)), "Data de partida inválida"),
@@ -25,14 +30,10 @@ export const createTripSchema = z
     allow_electronics: z.coerce.boolean().optional(),
     allow_valuable: z.coerce.boolean().optional(),
   })
-  .refine(
-    // Canonical comparison: "GRU" and "Congonhas" are both São Paulo.
-    (data) => !citiesMatch(data.origin_city, data.destination_city),
-    {
-      message: "Origem e destino não podem ser a mesma cidade",
-      path: ["destination_city"],
-    }
-  )
+  .refine((data) => data.origin_airport !== data.destination_airport, {
+    message: "Origem e destino não podem ser o mesmo aeroporto",
+    path: ["destination_airport"],
+  })
   .refine(
     (data) =>
       !data.arrival_date ||

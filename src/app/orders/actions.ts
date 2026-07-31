@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { createOrderSchema } from "@/lib/validations/order";
+import { getAirport } from "@/lib/airports";
 import { rateLimit } from "@/lib/rate-limit";
 
 export async function createOrder(formData: FormData) {
@@ -29,8 +30,8 @@ export async function createOrder(formData: FormData) {
     description: formData.get("description") ?? "",
     size: formData.get("size") ?? "",
     weight_kg: formData.get("weight_kg") || undefined,
-    origin_city: formData.get("origin_city"),
-    destination_city: formData.get("destination_city"),
+    origin_airport: formData.get("origin_airport"),
+    destination_airport: formData.get("destination_airport"),
     needed_by_date: formData.get("needed_by_date") ?? "",
     budget: no_minimum_budget ? undefined : formData.get("budget") || undefined,
     no_minimum_budget,
@@ -42,7 +43,16 @@ export async function createOrder(formData: FormData) {
   }
 
   const v = parsed.data;
+  const origin = getAirport(v.origin_airport);
+  const destination = getAirport(v.destination_airport);
+  if (!origin || !destination) {
+    redirect(
+      `/orders/new?error=${encodeURIComponent("Selecione um aeroporto da lista.")}`
+    );
+  }
 
+  // Ver a nota em trips/actions.ts: a cidade continua sendo gravada porque a
+  // coluna ainda é NOT NULL, mas agora vem da lista, não do teclado.
   const { data, error } = await supabase
     .from("orders")
     .insert({
@@ -52,8 +62,10 @@ export async function createOrder(formData: FormData) {
       description: v.description || null,
       size: v.size || null,
       weight_kg: v.weight_kg ?? null,
-      origin_city: v.origin_city,
-      destination_city: v.destination_city,
+      origin_airport: v.origin_airport,
+      destination_airport: v.destination_airport,
+      origin_city: origin.city,
+      destination_city: destination.city,
       needed_by_date: v.needed_by_date || null,
       budget: v.no_minimum_budget ? null : v.budget ?? null,
     })

@@ -4,22 +4,33 @@ import { createOrder } from "../actions";
 import { MotionForm, MotionItem, MotionButton, MotionBanner } from "@/components/motion";
 import { Package, MapPin, Handshake, Link2 as LinkIcon } from "lucide-react";
 import Link from "next/link";
+import { AIRPORTS, airportLabel, isActiveAirport } from "@/lib/airports";
 
 export default async function NewOrderPage({
   searchParams,
 }: {
-  // title/origin_city/destination_city chegam pré-preenchidos pelos atalhos
-  // da tela Início (src/components/home/ModeSwitcher.tsx).
+  // title/origin_airport/destination_airport chegam pré-preenchidos pelos
+  // atalhos da tela Início (src/components/home/ModeSwitcher.tsx).
   searchParams: Promise<{
     error?: string;
     title?: string;
-    origin_city?: string;
-    destination_city?: string;
+    origin_airport?: string;
+    destination_airport?: string;
   }>;
 }) {
   const { user } = await getCurrentUserWithProfile();
   if (!user) redirect("/login");
-  const { error, title, origin_city, destination_city } = await searchParams;
+  const params = await searchParams;
+  const { error, title } = params;
+
+  // Um código vindo da URL não é confiável: se não estiver na lista ativa o
+  // select ficaria com um valor que o servidor recusa depois.
+  const originAirport = isActiveAirport(params.origin_airport ?? "")
+    ? params.origin_airport
+    : undefined;
+  const destinationAirport = isActiveAirport(params.destination_airport ?? "")
+    ? params.destination_airport
+    : undefined;
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
@@ -30,10 +41,11 @@ export default async function NewOrderPage({
             Malotex
           </Link>
           <h1 className="mt-8 text-4xl font-black leading-tight tracking-tight sm:text-5xl">
-            O que você quer que a gente traga?
+            O que você precisa enviar?
           </h1>
           <p className="mt-6 text-lg text-neutral-400">
-            Descreva o produto, de onde ele deve vir e quanto você quer pagar. Nós conectamos você com o viajante perfeito.
+            Descreva o item, informe a rota e quanto você oferece ao viajante. A
+            Malotex conecta você a viajantes compatíveis.
           </p>
         </div>
         
@@ -95,22 +107,18 @@ export default async function NewOrderPage({
                   não tem coluna de imagem. A foto subia no corpo do POST e era
                   descartada em silêncio — o pior tipo de controle quebrado,
                   porque parece ter funcionado.
-
-                  O link resolve melhor o problema real de qualquer forma: quem
-                  viaja precisa saber exatamente qual produto comprar e onde.
-                  E `product_link` já existe no schema e no Zod, validado como
-                  URL.
                 */}
                 <MotionItem>
                   <TextField
-                    label="Link do produto (Opcional)"
+                    label="Link de referência (Opcional)"
                     name="product_link"
                     type="url"
                     placeholder="https://loja.com/produto"
                   />
                   <p className="mt-2 flex items-start gap-1.5 text-xs text-neutral-500">
                     <LinkIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-                    Cole o link para o viajante saber exatamente o que comprar.
+                    Adicione um link de referência para o viajante conferir as
+                    características do item.
                   </p>
                 </MotionItem>
               </div>
@@ -127,10 +135,20 @@ export default async function NewOrderPage({
 
               <div className="grid grid-cols-1 gap-6 glass rounded-2xl p-6 sm:grid-cols-2">
                 <MotionItem>
-                  <TextField label="Cidade de origem" name="origin_city" placeholder="Onde o viajante vai comprar?" defaultValue={origin_city} required />
+                  <AirportField
+                    label="Aeroporto de origem"
+                    name="origin_airport"
+                    placeholder="De onde o item será retirado?"
+                    defaultValue={originAirport}
+                  />
                 </MotionItem>
                 <MotionItem>
-                  <TextField label="Cidade de destino" name="destination_city" placeholder="Para onde deve ir?" defaultValue={destination_city} required />
+                  <AirportField
+                    label="Aeroporto de destino"
+                    name="destination_airport"
+                    placeholder="Para onde deve ir?"
+                    defaultValue={destinationAirport}
+                  />
                 </MotionItem>
               </div>
             </section>
@@ -181,6 +199,41 @@ export default async function NewOrderPage({
         </div>
       </div>
     </div>
+  );
+}
+
+function AirportField({
+  label,
+  name,
+  placeholder,
+  defaultValue,
+}: {
+  label: string;
+  name: string;
+  placeholder: string;
+  defaultValue?: string;
+}) {
+  return (
+    <label className="block text-sm">
+      <span className="mb-2 block font-medium text-neutral-700 dark:text-neutral-300">
+        {label} <span className="text-red-500">*</span>
+      </span>
+      <select
+        name={name}
+        required
+        defaultValue={defaultValue ?? ""}
+        className="glass-weak w-full appearance-none rounded-xl px-4 py-3 text-sm outline-none transition-all focus:border-brand-ink focus:ring-4 focus:ring-brand/10"
+      >
+        <option value="" disabled>
+          {placeholder}
+        </option>
+        {AIRPORTS.map((a) => (
+          <option key={a.code} value={a.code}>
+            {airportLabel(a.code)}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

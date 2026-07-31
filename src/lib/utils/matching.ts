@@ -1,7 +1,6 @@
 import "server-only";
 import { createClient } from "@/utils/supabase/server";
 import type { Order, Trip } from "@/types/database";
-import { citiesMatch } from "./cities";
 
 const DEFAULT_SEARCH_WINDOW_DAYS = 14;
 
@@ -77,6 +76,11 @@ export async function suggestTripsForOrder(
 
   if (orderError || !order) return [];
 
+  // Sem aeroporto não há rota comparável. Isso só acontece nas linhas anteriores
+  // à 0014 cuja cidade era ambígua ("São Paulo" não diz se é GRU ou CGH), e
+  // sugerir a partir de um palpite seria pior do que não sugerir nada.
+  if (!order.origin_airport || !order.destination_airport) return [];
+
   const today = new Date();
   const windowEnd = new Date(today);
   windowEnd.setDate(
@@ -86,13 +90,12 @@ export async function suggestTripsForOrder(
         : windowDays)
   );
 
-  // City is free text ("floripa" vs "florianopolis" vs "congonhas"), so the
-  // route filter can't be an exact `ilike` in SQL — it runs in memory below
-  // via canonicalCity(). Status and dates still narrow the query server-side.
   let query = supabase
     .from("trips")
     .select("*")
     .eq("status", "active")
+    .eq("origin_airport", order.origin_airport)
+    .eq("destination_airport", order.destination_airport)
     .gte("departure_date", today.toISOString().slice(0, 10));
 
   if (order.needed_by_date) {
@@ -104,11 +107,7 @@ export async function suggestTripsForOrder(
   const { data: allTrips, error: tripsError } = await query;
   if (tripsError || !allTrips) return [];
 
-  const trips = (allTrips as Trip[]).filter(
-    (t) =>
-      citiesMatch(t.origin_city, order.origin_city) &&
-      citiesMatch(t.destination_city, order.destination_city)
-  );
+  const trips = allTrips as Trip[];
   if (trips.length === 0) return [];
 
   // profiles_public is a view, so PostgREST can't embed it via a FK-based
@@ -164,18 +163,20 @@ export async function suggestOrdersForTrip(
 
   if (tripError || !trip) return [];
 
-  // Same reason as suggestTripsForOrder: the route filter is canonical, so it
-  // can't run as SQL against the free-text columns.
-  const query = supabase.from("orders").select("*").eq("status", "open");
+  // Ver a nota em suggestTripsForOrder.
+  if (!trip.origin_airport || !trip.destination_airport) return [];
 
-  const { data: orders, error: ordersError } = await query;
+  const { data: orders, error: ordersError } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("status", "open")
+    .eq("origin_airport", trip.origin_airport)
+    .eq("destination_airport", trip.destination_airport);
   if (ordersError || !orders) return [];
 
   const scored = (orders as Order[])
     .filter(
       (o) =>
-        citiesMatch(o.origin_city, trip.origin_city) &&
-        citiesMatch(o.destination_city, trip.destination_city) &&
         (!o.needed_by_date || o.needed_by_date >= trip.departure_date) &&
         (!o.weight_kg ||
           !trip.available_space_kg ||
@@ -190,5 +191,3 @@ export async function suggestOrdersForTrip(
 
   return scored;
 }
-
-export { citiesMatch, canonicalCity } from "./cities";

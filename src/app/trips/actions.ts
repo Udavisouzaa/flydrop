@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { createTripSchema } from "@/lib/validations/trip";
+import { getAirport } from "@/lib/airports";
 import { rateLimit } from "@/lib/rate-limit";
 
 export async function createTrip(formData: FormData) {
@@ -22,10 +23,8 @@ export async function createTrip(formData: FormData) {
   }
 
   const parsed = createTripSchema.safeParse({
-    origin_city: formData.get("origin_city"),
-    origin_state: formData.get("origin_state") ?? "",
-    destination_city: formData.get("destination_city"),
-    destination_state: formData.get("destination_state") ?? "",
+    origin_airport: formData.get("origin_airport"),
+    destination_airport: formData.get("destination_airport"),
     departure_date: formData.get("departure_date"),
     arrival_date: formData.get("arrival_date") ?? "",
     available_space_kg: formData.get("available_space_kg") || undefined,
@@ -41,15 +40,28 @@ export async function createTrip(formData: FormData) {
   }
 
   const v = parsed.data;
+  const origin = getAirport(v.origin_airport);
+  const destination = getAirport(v.destination_airport);
+  if (!origin || !destination) {
+    redirect(
+      `/trips/new?error=${encodeURIComponent("Selecione um aeroporto da lista.")}`
+    );
+  }
 
+  // `origin_city` ainda é NOT NULL: a 0014 acrescenta a coluna de aeroporto
+  // sem derrubar a de cidade, para que esta versão do código possa subir antes
+  // ou depois da migration. A cidade agora é derivada do aeroporto escolhido,
+  // então as grafias divergentes que motivaram o cities.ts param de nascer.
   const { data, error } = await supabase
     .from("trips")
     .insert({
       traveler_id: user.id,
-      origin_city: v.origin_city,
-      origin_state: v.origin_state || null,
-      destination_city: v.destination_city,
-      destination_state: v.destination_state || null,
+      origin_airport: v.origin_airport,
+      destination_airport: v.destination_airport,
+      origin_city: origin.city,
+      origin_state: origin.state,
+      destination_city: destination.city,
+      destination_state: destination.state,
       departure_date: v.departure_date,
       available_space_kg: v.available_space_kg ?? null,
       notes: v.notes || null,

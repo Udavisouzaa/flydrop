@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowUpDown, Search, Package, Send } from "lucide-react";
+import { AIRPORTS, airportLabel } from "@/lib/airports";
 
 type Mode = "enviar" | "levar";
 
@@ -34,12 +35,11 @@ export default function ModeSwitcher() {
     setDestination(origin);
   }
 
-  function routeQuery() {
-    const params = new URLSearchParams();
-    if (origin.trim()) params.set("origin", origin.trim());
-    if (destination.trim()) params.set("destination", destination.trim());
-    const q = params.toString();
-    return q ? `?${q}` : "";
+  function routeParams(base?: Record<string, string>) {
+    const params = new URLSearchParams(base);
+    if (origin) params.set("origin", origin);
+    if (destination) params.set("destination", destination);
+    return params;
   }
 
   function submit(e: React.FormEvent) {
@@ -49,19 +49,20 @@ export default function ModeSwitcher() {
     // publicar o pedido da rota, e quem leva vai para a lista de pedidos.
     if (enviar) {
       const params = new URLSearchParams();
-      if (origin.trim()) params.set("origin_city", origin.trim());
-      if (destination.trim()) params.set("destination_city", destination.trim());
+      if (origin) params.set("origin_airport", origin);
+      if (destination) params.set("destination_airport", destination);
       const q = params.toString();
       router.push(`/orders/new${q ? `?${q}` : ""}`);
       return;
     }
-    router.push(`/trips${routeQuery()}`);
+    const q = routeParams().toString();
+    router.push(`/trips${q ? `?${q}` : ""}`);
   }
 
   function openCategory(label: string) {
     const params = new URLSearchParams({ title: label });
-    if (origin.trim()) params.set("origin_city", origin.trim());
-    if (destination.trim()) params.set("destination_city", destination.trim());
+    if (origin) params.set("origin_airport", origin);
+    if (destination) params.set("destination_airport", destination);
     router.push(`/orders/new?${params.toString()}`);
   }
 
@@ -111,33 +112,21 @@ export default function ModeSwitcher() {
 
       <form onSubmit={submit} className="mt-5">
         <div className="glass-weak text-foreground relative rounded-2xl p-2">
-          <label className="block">
-            <span className="text-muted-foreground px-3 text-[11px] font-medium tracking-wide uppercase">
-              Saindo de
-            </span>
-            <input
-              value={origin}
-              onChange={(e) => setOrigin(e.target.value)}
-              placeholder="São Paulo"
-              autoComplete="address-level2"
-              className="w-full bg-transparent px-3 pt-0.5 pr-16 pb-2 text-base font-medium outline-none"
-            />
-          </label>
+          <AirportSelect
+            legend="Saindo de"
+            placeholder="Escolha o aeroporto de origem"
+            value={origin}
+            onChange={setOrigin}
+          />
 
           <div className="border-border border-t" />
 
-          <label className="block">
-            <span className="text-muted-foreground px-3 pt-2 text-[11px] font-medium tracking-wide uppercase">
-              Indo para
-            </span>
-            <input
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              placeholder="Florianópolis"
-              autoComplete="address-level2"
-              className="w-full bg-transparent px-3 pt-0.5 pr-16 pb-2 text-base font-medium outline-none"
-            />
-          </label>
+          <AirportSelect
+            legend="Indo para"
+            placeholder="Escolha o aeroporto de destino"
+            value={destination}
+            onChange={setDestination}
+          />
 
           {/* Botão de inverter, ancorado na divisória entre os dois campos. */}
           <button
@@ -191,6 +180,38 @@ export default function ModeSwitcher() {
         />
       </div>
     </section>
+  );
+}
+
+function AirportSelect({
+  legend,
+  placeholder,
+  value,
+  onChange,
+}: {
+  legend: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-muted-foreground px-3 text-[11px] font-medium tracking-wide uppercase">
+        {legend}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full appearance-none bg-transparent px-3 pt-0.5 pr-16 pb-2 text-base font-medium outline-none"
+      >
+        <option value="">{placeholder}</option>
+        {AIRPORTS.map((a) => (
+          <option key={a.code} value={a.code}>
+            {airportLabel(a.code)}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

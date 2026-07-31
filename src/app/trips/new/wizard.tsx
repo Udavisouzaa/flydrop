@@ -13,50 +13,12 @@ import {
   Weight,
 } from "lucide-react";
 import { createTrip } from "../actions";
-import { citiesMatch } from "@/lib/utils/cities";
-
-/**
- * Airports offered in the picker.
- *
- * `city` and `state` are what actually reach the database — `trips` stores free
- * text cities, not IATA codes, and every search and match in the app compares
- * cities. Storing "GRU" would have made a trip from Guarulhos invisible to
- * someone searching "São Paulo".
- */
-const AIRPORTS = [
-  { code: "GRU", label: "GRU — Guarulhos, São Paulo", city: "São Paulo", state: "SP" },
-  { code: "CGH", label: "CGH — Congonhas, São Paulo", city: "São Paulo", state: "SP" },
-  { code: "SDU", label: "SDU — Santos Dumont, Rio de Janeiro", city: "Rio de Janeiro", state: "RJ" },
-  { code: "GIG", label: "GIG — Galeão, Rio de Janeiro", city: "Rio de Janeiro", state: "RJ" },
-  { code: "BSB", label: "BSB — Brasília", city: "Brasília", state: "DF" },
-  { code: "CNF", label: "CNF — Confins, Belo Horizonte", city: "Belo Horizonte", state: "MG" },
-  { code: "POA", label: "POA — Salgado Filho, Porto Alegre", city: "Porto Alegre", state: "RS" },
-  { code: "FLN", label: "FLN — Hercílio Luz, Florianópolis", city: "Florianópolis", state: "SC" },
-  { code: "CWB", label: "CWB — Afonso Pena, Curitiba", city: "Curitiba", state: "PR" },
-  { code: "SSA", label: "SSA — Deputado Magalhães, Salvador", city: "Salvador", state: "BA" },
-  { code: "REC", label: "REC — Guararapes, Recife", city: "Recife", state: "PE" },
-  { code: "FOR", label: "FOR — Pinto Martins, Fortaleza", city: "Fortaleza", state: "CE" },
-  { code: "SLZ", label: "SLZ — Mal. Cunha Machado, São Luís", city: "São Luís", state: "MA" },
-  { code: "BEL", label: "BEL — Val-de-Cans, Belém", city: "Belém", state: "PA" },
-  { code: "MAO", label: "MAO — Eduardo Gomes, Manaus", city: "Manaus", state: "AM" },
-] as const;
-
-/** Sentinel for "not in the list" — reveals a free-text city field. */
-const OTHER = "OUTRO";
+import { AIRPORTS, airportLabel, airportShort } from "@/lib/airports";
 
 const WEIGHT_OPTIONS = [
   { kg: 5, label: "5 kg", desc: "Itens pequenos" },
   { kg: 10, label: "10 kg", desc: "Mala de mão cheia" },
-  { kg: 23, label: "23 kg", desc: "Mala despachada" },
 ] as const;
-
-type Place = { city: string; state: string };
-
-function resolvePlace(code: string, freeText: string): Place {
-  if (code === OTHER) return { city: freeText.trim(), state: "" };
-  const airport = AIRPORTS.find((a) => a.code === code);
-  return airport ? { city: airport.city, state: airport.state } : { city: "", state: "" };
-}
 
 /** Today as yyyy-mm-dd in the browser's timezone, for the date input's `min`. */
 function todayISO(): string {
@@ -83,23 +45,17 @@ export default function NewTripWizard({ error }: { error?: string }) {
   const [step, setStep] = useState(1);
 
   const [originCode, setOriginCode] = useState("");
-  const [originOther, setOriginOther] = useState("");
   const [destinationCode, setDestinationCode] = useState("");
-  const [destinationOther, setDestinationOther] = useState("");
   const [date, setDate] = useState("");
   const [weightKg, setWeightKg] = useState<number | null>(null);
   const [acceptsPerishables, setAcceptsPerishables] = useState(false);
   const [notes, setNotes] = useState("");
 
-  const origin = resolvePlace(originCode, originOther);
-  const destination = resolvePlace(destinationCode, destinationOther);
-
   // Mirrors the server-side refine in createTripSchema, so the traveler finds
   // out on the screen where they picked the airports rather than after
   // filling in three more steps.
-  const sameCity = citiesMatch(origin.city, destination.city);
-  const routeReady =
-    origin.city.length >= 2 && destination.city.length >= 2 && !sameCity;
+  const sameAirport = Boolean(originCode) && originCode === destinationCode;
+  const routeReady = Boolean(originCode) && Boolean(destinationCode) && !sameAirport;
 
   const next = () => setStep((s) => Math.min(4, s + 1));
   const back = () => setStep((s) => Math.max(1, s - 1));
@@ -157,8 +113,6 @@ export default function NewTripWizard({ error }: { error?: string }) {
                   placeholder="Selecione a origem"
                   code={originCode}
                   onCode={setOriginCode}
-                  freeText={originOther}
-                  onFreeText={setOriginOther}
                 />
                 <PlacePicker
                   icon={<PlaneLanding className="text-brand-ink size-4" />}
@@ -166,14 +120,11 @@ export default function NewTripWizard({ error }: { error?: string }) {
                   placeholder="Selecione o destino"
                   code={destinationCode}
                   onCode={setDestinationCode}
-                  freeText={destinationOther}
-                  onFreeText={setDestinationOther}
                 />
 
-                {sameCity && (
+                {sameAirport && (
                   <p className="text-sm font-medium text-red-600 dark:text-red-400">
-                    Origem e destino são a mesma cidade. GRU e CGH, por exemplo,
-                    são os dois São Paulo.
+                    Origem e destino não podem ser o mesmo aeroporto.
                   </p>
                 )}
               </div>
@@ -212,7 +163,7 @@ export default function NewTripWizard({ error }: { error?: string }) {
                     <Weight className="text-brand-ink size-4" />
                     Espaço disponível na bagagem
                   </span>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     {WEIGHT_OPTIONS.map((opt) => (
                       <button
                         key={opt.kg}
@@ -331,7 +282,7 @@ export default function NewTripWizard({ error }: { error?: string }) {
 
               <dl className="glass-weak flex-1 space-y-3 rounded-2xl p-5 text-sm">
                 <Row label="Rota">
-                  {origin.city} → {destination.city}
+                  {airportShort(originCode)} → {airportShort(destinationCode)}
                 </Row>
                 <Row label="Data do voo">
                   {date ? date.split("-").reverse().join("/") : "—"}
@@ -342,10 +293,12 @@ export default function NewTripWizard({ error }: { error?: string }) {
               </dl>
 
               <form action={createTrip} className="mt-auto pt-6">
-                <input type="hidden" name="origin_city" value={origin.city} />
-                <input type="hidden" name="origin_state" value={origin.state} />
-                <input type="hidden" name="destination_city" value={destination.city} />
-                <input type="hidden" name="destination_state" value={destination.state} />
+                <input type="hidden" name="origin_airport" value={originCode} />
+                <input
+                  type="hidden"
+                  name="destination_airport"
+                  value={destinationCode}
+                />
                 <input type="hidden" name="departure_date" value={date} />
                 <input
                   type="hidden"
@@ -396,16 +349,12 @@ function PlacePicker({
   placeholder,
   code,
   onCode,
-  freeText,
-  onFreeText,
 }: {
   icon: React.ReactNode;
   label: string;
   placeholder: string;
   code: string;
   onCode: (v: string) => void;
-  freeText: string;
-  onFreeText: (v: string) => void;
 }) {
   return (
     <div>
@@ -423,20 +372,10 @@ function PlacePicker({
         </option>
         {AIRPORTS.map((a) => (
           <option key={a.code} value={a.code}>
-            {a.label}
+            {airportLabel(a.code)}
           </option>
         ))}
-        <option value={OTHER}>Outra cidade…</option>
       </select>
-      {code === OTHER && (
-        <input
-          value={freeText}
-          onChange={(e) => onFreeText(e.target.value)}
-          placeholder="Digite a cidade"
-          autoComplete="off"
-          className="glass-weak focus:border-brand-ink mt-3 w-full rounded-xl px-4 py-3 text-base outline-none"
-        />
-      )}
     </div>
   );
 }

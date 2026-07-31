@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { citiesMatch } from "@/lib/utils/cities";
+import { AIRPORT_CODES } from "@/lib/airports";
 
 export const orderCategoryEnum = z.enum([
   "electronics",
@@ -7,6 +7,18 @@ export const orderCategoryEnum = z.enum([
   "clothing",
   "other",
 ]);
+
+/**
+ * A rota é um aeroporto da lista ativa, não uma cidade digitada.
+ *
+ * O banco também recusa via chave estrangeira (migration 0014). Validar aqui
+ * primeiro é o que transforma um 500 do PostgREST numa mensagem em português.
+ */
+const airportCode = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .refine((c) => AIRPORT_CODES.includes(c), "Selecione um aeroporto da lista");
 
 export const createOrderSchema = z
   .object({
@@ -21,8 +33,8 @@ export const createOrderSchema = z
     category: orderCategoryEnum.optional(),
     size: z.string().trim().max(50).optional().or(z.literal("")),
     weight_kg: z.coerce.number().positive().max(32).optional(),
-    origin_city: z.string().trim().min(2, "Cidade de origem obrigatória"),
-    destination_city: z.string().trim().min(2, "Cidade de destino obrigatória"),
+    origin_airport: airportCode,
+    destination_airport: airportCode,
     needed_by_date: z
       .string()
       .refine((v) => !Number.isNaN(Date.parse(v)), "Data inválida")
@@ -36,14 +48,10 @@ export const createOrderSchema = z
     requires_insurance: z.coerce.boolean().optional(),
     fragile: z.coerce.boolean().optional(),
   })
-  .refine(
-    // Canonical comparison: "GRU" and "Congonhas" are both São Paulo.
-    (data) => !citiesMatch(data.origin_city, data.destination_city),
-    {
-      message: "Origem e destino não podem ser a mesma cidade",
-      path: ["destination_city"],
-    }
-  )
+  .refine((data) => data.origin_airport !== data.destination_airport, {
+    message: "Origem e destino não podem ser o mesmo aeroporto",
+    path: ["destination_airport"],
+  })
   .refine(
     (data) =>
       data.budget_min === undefined ||

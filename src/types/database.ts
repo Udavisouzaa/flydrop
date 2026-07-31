@@ -40,6 +40,13 @@ export interface ProfilePublic {
 export interface Trip {
   id: string;
   traveler_id: string;
+  /**
+   * Rota canônica desde a 0014. Nula só nas linhas anteriores à migration cujo
+   * texto de cidade era ambíguo — "São Paulo" não diz se é GRU ou CGH.
+   */
+  origin_airport: string | null;
+  destination_airport: string | null;
+  /** Derivadas do aeroporto na escrita, mantidas enquanto forem NOT NULL. */
   origin_city: string;
   origin_state: string | null;
   destination_city: string;
@@ -59,6 +66,9 @@ export interface Order {
   description: string | null;
   size: string | null;
   weight_kg: number | null;
+  /** Ver Trip.origin_airport. */
+  origin_airport: string | null;
+  destination_airport: string | null;
   origin_city: string;
   destination_city: string;
   needed_by_date: string | null;

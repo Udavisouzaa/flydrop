@@ -3,7 +3,7 @@ import { Plus, Package, Send, Zap } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
 import { getCurrentUserWithProfile } from "@/utils/supabase/queries";
 import type { Order, Trip } from "@/types/database";
-import { cityMatchesSearch } from "@/lib/utils/cities";
+import { AIRPORTS, airportLabel, airportShort, isActiveAirport } from "@/lib/airports";
 
 type Aba = "pedidos" | "viagens";
 
@@ -25,6 +25,11 @@ function ehUrgente(neededBy: string | null) {
   return dias >= 0 && dias <= DIAS_PARA_URGENTE;
 }
 
+/** Linhas anteriores à 0014 não têm aeroporto; nelas a cidade é tudo que existe. */
+function rotulaLocal(code: string | null, city: string) {
+  return isActiveAirport(code) ? airportShort(code) : city;
+}
+
 export default async function LevarPage({
   searchParams,
 }: {
@@ -33,15 +38,27 @@ export default async function LevarPage({
   const { origin, destination, aba } = await searchParams;
   const abaAtiva: Aba = aba === "viagens" ? "viagens" : "pedidos";
 
+  // A rota vem da URL, então pode ser qualquer coisa. Só um código da lista
+  // ativa chega ao SQL; o resto vira "todas", que é o estado sem filtro.
+  const origem = isActiveAirport(origin ?? "") ? origin! : "";
+  const destino = isActiveAirport(destination ?? "") ? destination! : "";
+
   const supabase = await createClient();
   const { user } = await getCurrentUserWithProfile();
 
+  // O filtro é `eq` no banco porque a rota agora é um código da lista fechada.
+  // Enquanto a 0014 não roda, `origin_airport` não existe e nenhum filtro casa
+  // — daí o filtro só ser aplicado quando o usuário escolhe um aeroporto.
+  let pedidosQuery = supabase
+    .from("orders")
+    .select("*")
+    .eq("status", "open")
+    .order("created_at", { ascending: false });
+  if (origem) pedidosQuery = pedidosQuery.eq("origin_airport", origem);
+  if (destino) pedidosQuery = pedidosQuery.eq("destination_airport", destino);
+
   const [{ data: ordersData }, { data: tripsData }] = await Promise.all([
-    supabase
-      .from("orders")
-      .select("*")
-      .eq("status", "open")
-      .order("created_at", { ascending: false }),
+    pedidosQuery,
     user
       ? supabase
           .from("trips")
@@ -51,20 +68,14 @@ export default async function LevarPage({
       : Promise.resolve({ data: [] }),
   ]);
 
-  // Cidades são texto livre, então "floripa" e "Florianópolis" são strings
-  // diferentes para o mesmo lugar. O filtro roda depois da canonicalização,
-  // não como `ilike` no SQL.
   const pedidos = ((ordersData ?? []) as Order[]).filter(
-    (o) =>
-      o.requester_id !== user?.id &&
-      cityMatchesSearch(o.origin_city, origin) &&
-      cityMatchesSearch(o.destination_city, destination)
+    (o) => o.requester_id !== user?.id
   );
   const minhasViagens = (tripsData ?? []) as Trip[];
 
   const qs = new URLSearchParams();
-  if (origin) qs.set("origin", origin);
-  if (destination) qs.set("destination", destination);
+  if (origem) qs.set("origin", origem);
+  if (destino) qs.set("destination", destino);
   const filtro = qs.toString();
 
   function hrefAba(alvo: Aba) {
@@ -110,30 +121,46 @@ export default async function LevarPage({
 
       {abaAtiva === "pedidos" ? (
         <>
-          <form className="mt-4 grid grid-cols-2 gap-3">
+          {/* Empilhado, não em duas colunas: o rótulo do aeroporto traz sigla,
+              nome e cidade, e metade da largura corta a cidade fora. */}
+          <form className="mt-4 space-y-3">
             <Campo
               nome="origin"
               rotulo="Origem"
-              valor={origin}
-              placeholder="Todas"
+              valor={origem}
+              vazio="Todas"
             />
             <Campo
               nome="destination"
               rotulo="Destino"
-              valor={destination}
-              placeholder="Todos"
+              valor={destino}
+              vazio="Todos"
             />
             <button
               type="submit"
-              className="glass-strong col-span-2 rounded-2xl py-3 text-sm font-semibold"
+              className="glass-strong w-full rounded-2xl py-3 text-sm font-semibold"
             >
               Filtrar rota
             </button>
           </form>
 
-          <p className="text-muted-foreground mt-4 px-1 text-sm">
-            {pedidos.length} pedido(s) disponível(is)
-          </p>
+          <div className="mt-4 flex items-center justify-between gap-3 px-1">
+            <p className="text-muted-foreground text-sm">
+              {pedidos.length} pedido(s) disponível(is)
+              {filtro &&
+                ` em ${origem ? airportShort(origem) : "todas as origens"} → ${
+                  destino ? airportShort(destino) : "todos os destinos"
+                }`}
+            </p>
+            {filtro && (
+              <Link
+                href="/trips"
+                className="text-brand-ink shrink-0 text-sm font-semibold underline underline-offset-2"
+              >
+                Limpar
+              </Link>
+            )}
+          </div>
 
           {pedidos.length === 0 ? (
             <Vazio
@@ -164,7 +191,10 @@ export default async function LevarPage({
                 href={`/trips/${t.id}`}
                 className="glass block rounded-3xl p-4"
               >
-                <Rota de={t.origin_city} para={t.destination_city} />
+                <Rota
+                  de={rotulaLocal(t.origin_airport, t.origin_city)}
+                  para={rotulaLocal(t.destination_airport, t.destination_city)}
+                />
                 <p className="text-muted-foreground mt-2 text-xs">
                   Partida em{" "}
                   {new Date(t.departure_date).toLocaleDateString("pt-BR")}
@@ -209,25 +239,31 @@ function Campo({
   nome,
   rotulo,
   valor,
-  placeholder,
+  vazio,
 }: {
   nome: string;
   rotulo: string;
-  valor?: string;
-  placeholder: string;
+  valor: string;
+  /** Rótulo da opção sem filtro — é o "todas"/"todos" explícito na lista. */
+  vazio: string;
 }) {
   return (
     <label className="glass-weak block rounded-2xl px-3 py-2">
       <span className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
         {rotulo}
       </span>
-      <input
+      <select
         name={nome}
         defaultValue={valor}
-        placeholder={placeholder}
-        autoComplete="address-level2"
-        className="w-full bg-transparent text-sm font-medium outline-none"
-      />
+        className="w-full appearance-none bg-transparent text-sm font-medium outline-none"
+      >
+        <option value="">{vazio}</option>
+        {AIRPORTS.map((a) => (
+          <option key={a.code} value={a.code}>
+            {airportLabel(a.code)}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }
@@ -282,7 +318,10 @@ function CardPedido({ pedido }: { pedido: Order }) {
       </div>
 
       <div className="border-glass-edge mt-3 border-t pt-3">
-        <Rota de={pedido.origin_city} para={pedido.destination_city} />
+        <Rota
+          de={rotulaLocal(pedido.origin_airport, pedido.origin_city)}
+          para={rotulaLocal(pedido.destination_airport, pedido.destination_city)}
+        />
       </div>
 
       <div className="text-muted-foreground mt-3 flex items-center justify-between gap-2 text-[11px]">
