@@ -1,15 +1,21 @@
-# LevAí — Roadmap até o lançamento
+# Malotex — Roadmap até o lançamento
 
-**Alvo: domingo, 27 de setembro de 2026.** 61 dias a partir de 28/07.
+**Alvo: domingo, 27 de setembro de 2026.** 59 dias a partir de 30/07.
 
-Decisões que definem este plano (28/07):
+Decisões que definem este plano (atualizado em 30/07):
 
 | | |
 |---|---|
 | Asaas | cadastro de produção **enviado, em análise** |
 | Figura jurídica | **CPF** (pessoa física) |
 | Tipo de lançamento | **público aberto** |
-| Domínio `levai.app` | **não comprado ainda** |
+| Nome do produto | **Malotex** (era LevAí, era FlyDrop) |
+| Domínio | **`malotex.com.br` comprado e no ar**, com certificado |
+
+O nome mudou em 30/07. A infraestrutura **não** mudou junto, de propósito: a pasta, o
+repositório no GitHub, o projeto na Vercel e o projeto no Supabase continuam se chamando
+`flydrop`. Renomear isso quebraria remotes, URLs de deploy e integrações por ganho
+puramente cosmético.
 
 **[VOCÊ]** = depende de você (compra, conta, decisão, terceiro). Sem marcação = código, faço eu.
 
@@ -98,32 +104,107 @@ Verificado depois de aplicar, lendo o catálogo do Postgres:
 Os arquivos foram renomeados para o timestamp que o ledger registrou
 (`20260729090730`…`20260729090853`), para `supabase db push` não tentar reaplicar.
 
-**Pendente daqui:** o app ainda chama `increment_completion_stats` em
-`src/app/matches/actions.ts:403`. A RPC agora é idempotente, então não é urgente, mas
-enquanto a chamada existir a função precisa continuar exposta a `authenticated` — é o
-que sobra de WARN no advisor. Remover a chamada e derrubar a RPC numa 0012 fecha isso.
+**Fechado em 29/07 pela `0012`:** a chamada a `increment_completion_stats` saiu de
+`src/app/matches/actions.ts` (commit `7b5a973`) e a RPC foi derrubada (`ad9ae0a`). O WARN
+do advisor foi junto.
 
-### 1.2 Rate limiting que realmente segura
+### 1.1b A 0009 trancou a criação de propostas — ✅ **CORRIGIDO em 30/07**
 
-Hoje `rateLimit()` cai no `Map` em processo, porque `UPSTASH_REDIS_REST_URL` e
-`UPSTASH_REDIS_REST_TOKEN` não existem. Na Vercel isso é um contador por instância de
-lambda, zerado a cada cold start: o limite de login (5/15min) vira 5 × instâncias
-quentes. Não segura credential stuffing.
+Efeito colateral que só apareceu quando alguém tentou usar o app: desde 29/07, **nenhuma
+proposta podia ser criada em produção**. A 0009 revogou o `EXECUTE` de
+`calc_connection_fee` de `authenticated`, mas `guard_match_insert()` — que é
+`SECURITY INVOKER` de propósito — chama exatamente essa função. Todo INSERT em `matches`
+morria com `42501 permission denied`, e a mensagem crua ficava escondida atrás de um
+"Não foi possível criar a proposta.".
 
-Provisionar Upstash e preencher as duas vars. O código já escolhe o backend em runtime —
-não precisa de mudança.
+Corrigido pela migration `0013`, aplicada em produção em 30/07 (commit `f89aa21`). A
+saída não foi devolver o GRANT — isso reabriria a função em
+`/rest/v1/rpc/calc_connection_fee` para qualquer usuário logado, que é o que a 0009 quis
+impedir.
 
-**Aceite:** seis tentativas de login com senha errada no mesmo e-mail, a partir de duas
-abas diferentes, bloqueiam na sexta.
+**Lição para o resto do roadmap:** as migrations 0008–0011 foram verificadas lendo o
+catálogo do Postgres, e mesmo assim uma delas quebrou um fluxo inteiro. Ler o catálogo
+prova que a permissão está como você escreveu; só o 1.4 prova que o app funciona.
 
-### 1.3 Completar env vars na Vercel
+### 1.1c Domínio, e-mail e login — ✅ **FEITO em 30/07**
 
-Faltam `SUPABASE_SERVICE_ROLE_KEY` e `DATABASE_URL`. Sem a primeira, a exclusão de conta
-(LGPD Art. 18, VI) não funciona — falha com mensagem apontando o DPO, mas não exclui.
+O maior desbloqueio do cronograma. O que entrou:
 
-### 1.4 Primeiro smoke test manual autenticado — **[VOCÊ]**
+| | |
+|---|---|
+| `malotex.com.br` | comprado no Registro.br, nameservers delegados para a Vercel |
+| Certificado | Let's Encrypt emitido para o apex e para `www` |
+| Rebrand | commit `8576f29` — todo texto que o usuário lê diz **Malotex** |
+| Login com Google | commit `abfd14e`, com a rota de callback que o projeto nunca teve |
+| E-mail | Zoho configurado: verificação, 3 MX, SPF e DKIM validados no DNS |
+| Supabase Auth | Redirect URLs liberando o domínio novo |
 
-Nunca foi feito. Roteiro mínimo, nesta ordem, com duas contas:
+As chaves internas continuam com o nome antigo (`levai-theme`, `levai-lang`,
+`levai:rl:`). Renomear apagaria a preferência de tema e idioma de quem já usou o app e
+zeraria os contadores de rate limit. Ficam como estão.
+
+**Ainda pendente daqui — [VOCÊ]:**
+
+- Trocar a **Site URL** no Supabase para `https://malotex.com.br` (hoje ainda aponta para
+  a URL da Vercel; é ela que os e-mails de auth usam como fallback)
+- Terminar o alias `privacidade@malotex.com.br` no Zoho e mandar um e-mail de teste. Só
+  quando a mensagem chegar é que o Art. 41 §1 está de fato resolvido — o aviso ⚠️ em
+  `src/lib/legal.ts` fica até lá
+
+### 1.2 Rate limiting que realmente segura — ✅ **PROVISIONADO em 29/07**
+
+`UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN` estão em Production na Vercel
+(medido em 31/07 via `vercel env ls production`). O código escolhe o backend em runtime,
+então o fallback do `Map` em processo — um contador por instância de lambda, zerado a cada
+cold start — não vale mais em produção.
+
+**Falta só o aceite**, que ninguém rodou: seis tentativas de login com senha errada no
+mesmo e-mail, a partir de duas abas diferentes, bloqueiam na sexta. Cabe no smoke test
+(1.4) como passo 0.
+
+### 1.3 Completar env vars na Vercel — ✅ **FEITO em 29/07**
+
+`SUPABASE_SERVICE_ROLE_KEY` está em Production. Era ela que a exclusão de conta (LGPD
+Art. 18, VI), o checkout e o webhook precisavam.
+
+`DATABASE_URL` **não é necessária**: `src/db/` (drizzle) não é importado por nenhum
+arquivo fora dele mesmo. É código morto, não uma var faltando. Ou o `src/db/` ganha um
+uso, ou sai do repo — mas não bloqueia nada.
+
+### 1.3b As três vars do Asaas não existem em produção — **[VOCÊ]** · bloqueia o 1.4
+
+Descoberto em 31/07 medindo `vercel env ls production`. Production tem cinco vars:
+as duas do Upstash, a `SUPABASE_SERVICE_ROLE_KEY` e as duas do Supabase públicas.
+**`ASAAS_API_KEY`, `ASAAS_ENV` e `ASAAS_WEBHOOK_TOKEN` não estão lá** — existem só no
+`.env.local`.
+
+Consequência exata, e é por isso que isto vem antes do 1.4:
+
+- **Passo 4 do smoke test morre.** `POST /api/connection/checkout` testa
+  `isAsaasConfigured()` na primeira linha e responde **501 "Pagamentos ainda não estão
+  configurados neste ambiente"**. Nem chega a criar a cobrança.
+- **O contato nunca desbloqueia.** `verifyWebhookToken()` retorna `false` quando
+  `ASAAS_WEBHOOK_TOKEN` está ausente (falha fechada, correto), então todo webhook real do
+  Asaas levaria 401. E `matches.unlocked_at` só pode ser escrito pelo `service_role` via
+  webhook — o trigger `guard_unlock_fields` bloqueia qualquer outro caminho.
+
+Sem isso o smoke test para no passo 4 de 7, e os passos 5 e 6 (chat, coleta, entrega)
+ficam inalcançáveis porque dependem do contato liberado.
+
+**O que fazer:** copiar as três do `.env.local` para a Vercel em Production. Manter
+`ASAAS_ENV=sandbox` — não é hora de cobrar de verdade. E apontar o webhook no painel do
+Asaas para `https://malotex.com.br/api/webhooks/asaas` com o mesmo token (é o 2.3, mas o
+smoke test não passa sem ele).
+
+**Aceite:** `POST /api/connection/checkout` autenticado devolve um Pix, não 501.
+
+### 1.4 Primeiro smoke test manual autenticado — **[VOCÊ]** · agora o item mais importante do M1
+
+Nunca foi feito, e depois do 1.1b é o único item que prova que o app funciona. Rodar em
+**produção** (`https://malotex.com.br`), não em `localhost` — é lá que estão as env vars,
+o RLS real e o domínio dos e-mails.
+
+Roteiro mínimo, nesta ordem, com duas contas:
 
 1. Cadastro com aceite dos termos → confirmar e-mail → login
 2. Publicar uma viagem · publicar um pedido (contas diferentes)
@@ -139,12 +220,18 @@ Nunca foi feito. Roteiro mínimo, nesta ordem, com duas contas:
 
 Compara a senha contra o HaveIBeenPwned no cadastro. Painel do Supabase, Auth → Password.
 
-### 1.6 Comprar `levai.app` — **[VOCÊ]**
+### 1.6 Comprar o domínio — ✅ **FEITO em 30/07:** `malotex.com.br`
 
-Trava três frentes: caixa `privacidade@` (Art. 41 §1 — o e-mail do encarregado está
-publicado e não existe), SMTP dos e-mails de auth, e URL de produção coerente com os
-termos. Se o domínio final for outro, me avise para corrigir `DPO_EMAIL` em
-`src/lib/legal.ts`.
+Era o item que travava três frentes de uma vez. Ver 1.1c. O que ele desbloqueou:
+`privacidade@` (Art. 41 §1), domínio verificável para o Resend (2.5) e URL de produção
+coerente com os termos. `DPO_EMAIL` em `src/lib/legal.ts` já aponta para
+`privacidade@malotex.com.br`.
+
+### 1.8 Identidade visual mínima — ✅ **FEITO em 30/07**
+
+Favicon de mala nas cores da marca, substituindo o ícone padrão do Next.js:
+`src/app/icon.svg` (o que aparece na aba), `favicon.ico` para navegador antigo,
+`apple-icon.png` 180px, e `icon-192/512.png` referenciados no manifest.
 
 ### 1.7 Decidir CPF vs MEI com contador — **[VOCÊ]**
 
@@ -281,7 +368,7 @@ público, com você como controlador pessoa física, isso não é opcional.
 Levar ao advogado, especificamente:
 - Identificação do fornecedor (CDC art. 31) — muda conforme CPF ou MEI
 - Se o CDC art. 49 (7 dias) se aplica à taxa de conexão
-- Limite de responsabilidade: o LevAí conecta, não transporta nem garante a entrega
+- Limite de responsabilidade: o Malotex conecta, não transporta nem garante a entrega
 - Se conectar pessoas para transportar bens de terceiros tem exigência regulatória
 - Política de privacidade contra a LGPD real, não contra o meu resumo dela
 
@@ -311,7 +398,7 @@ no teclado, `aria-label` nos botões só de ícone, leitor de tela no fluxo de c
 
 > **Objetivo:** parar de otimizar para quem já sabe usar.
 >
-> **Saída:** alguém que nunca ouviu falar do LevAí entende o que fazer em 30 segundos.
+> **Saída:** alguém que nunca ouviu falar do Malotex entende o que fazer em 30 segundos.
 
 ### 4.1 O marketplace vazio — **[VOCÊ]**, e é o maior risco de produto
 
@@ -459,22 +546,34 @@ acompanhar com folga.
 O que trava mais coisa, em ordem.
 
 ```
-Comprar levai.app ──┬─► caixa privacidade@ ──► LGPD art. 41 §1 resolvido
-                    ├─► domínio verificado ──► Resend ──► e-mail transacional (2.5)
-                    │                                       └─► notificação por e-mail (2.6)
-                    └─► URL de produção ────► termos coerentes
+malotex.com.br ✅ ───┬─► caixa privacidade@ ──► falta o teste chegar ──► art. 41 §1 fecha
+                     ├─► domínio verificado ──► Resend ──► e-mail transacional (2.5)
+                     │                                      └─► notificação por e-mail (2.6)
+                     └─► URL de produção ✅ ──► termos coerentes ✅
 
 Aprovação Asaas ────► chaves em produção ──► Pix ponta a ponta (2.1)
                                               ├─► idempotência (2.2)
                                               ├─► reconciliação (2.3)
                                               └─► reembolso (2.4)
 
-Migrations + Upstash + env ──► deploy ──► smoke test ──► base de todo o resto
+Migrations ✅ + deploy ✅ ──► smoke test (1.4) ──► base de todo o resto
+                                  ▲
+                     Upstash ✅ (1.2) · service_role ✅ (1.3)
+                     falta: 3 vars do Asaas em produção (1.3b)
 
 Decisão CPF/MEI ──► identificação nos termos ──► revisão jurídica (3.3) ──► M3 fecha
 
 Recrutar viajantes (4.1) ─────────────── começa em agosto, termina no dia do lançamento
 ```
 
-Os três primeiros ramos correm em paralelo e todos começam em algo que **só você** pode
-fazer. Por isso 28 e 29 de julho são os dias mais importantes do cronograma.
+O ramo do domínio destravou em 30/07 e levou o rebrand, o login com Google e o e-mail
+junto. Sobram dois gargalos, e os dois são seus: **a aprovação do Asaas**, que não
+depende de ninguém aqui e tem prazo de decisão em 10/08, e **o smoke test (1.4)** — o
+único item que ainda separa "compila e está no ar" de "funciona". Depois do episódio da
+0009 em 1.1b, essa distinção deixou de ser retórica.
+
+Uma correção de 31/07: os dois itens que o roadmap listava como pré-requisitos do smoke
+test (1.2 e 1.3) já estavam prontos desde 29/07 — o roadmap é que não tinha sido
+atualizado. O pré-requisito real é o 1.3b, que ninguém tinha visto. A aprovação do Asaas
+**não** bloqueia o smoke test: a chave de sandbox já existe no `.env.local` e funciona sem
+aprovação. O que bloqueia é ela não ter sido copiada para a Vercel.

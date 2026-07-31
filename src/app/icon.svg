@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Malotex">
+  <rect width="64" height="64" rx="15" fill="#f2cf24"/>
+  <path d="M24 19v-4a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v4"
+        fill="none" stroke="#2b1a03" stroke-width="6" stroke-linecap="round"/>
+  <rect x="8" y="19" width="48" height="36" rx="7" fill="#2b1a03"/>
+  <rect x="8" y="31" width="48" height="8" fill="#f2cf24"/>
+  <rect x="27" y="28" width="10" height="14" rx="3" fill="#f2cf24"/>
+</svg>
