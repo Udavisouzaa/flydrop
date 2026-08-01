@@ -18,23 +18,25 @@ import {
 } from "@/lib/utils/notifications";
 
 /**
- * Connection-fee pricing (taxa de conexão model, replacing Stripe escrow):
- * a flat/percentage fee charged to unlock contact info between the two
- * parties of a match. Delivery payment itself happens off-platform.
- * Tunable business rule — currently 10% of the order's stated budget,
- * clamped to a sane range, with a flat default when no budget is set.
+ * Taxa de conexão: valor único que destrava o contato entre as duas partes de
+ * um match. O pagamento da entrega em si acontece fora da plataforma.
+ *
+ * Valor fixo, e não mais 10% do orçamento. Dois motivos, nesta ordem:
+ *
+ *   1. O percentual atravessava o mínimo de cobrança do Asaas. O piso era
+ *      R$ 4,90, então todo pedido com orçamento abaixo de R$ 50 gerava uma
+ *      cobrança que o PSP recusa na criação — o usuário via "não foi possível
+ *      gerar a cobrança" sem nada que explicasse o porquê.
+ *   2. O orçamento é digitado pelo solicitante e não é verificado por ninguém.
+ *      Amarrar a receita a ele convidava a subdeclarar para pagar menos.
+ *
+ * O valor está escrito nos Termos de Uso (src/app/termos). Mexer aqui sem
+ * mexer lá deixa o site cobrando um preço e prometendo outro por escrito.
  */
-const CONNECTION_FEE_DEFAULT = 9.9;
-const CONNECTION_FEE_MIN = 4.9;
-const CONNECTION_FEE_MAX = 29.9;
-const CONNECTION_FEE_RATE = 0.1;
+const CONNECTION_FEE = 19.9;
 
-function calculateConnectionFee(orderBudget: number | null): number {
-  if (!orderBudget || orderBudget <= 0) return CONNECTION_FEE_DEFAULT;
-  const raw = orderBudget * CONNECTION_FEE_RATE;
-  return Math.round(
-    Math.min(CONNECTION_FEE_MAX, Math.max(CONNECTION_FEE_MIN, raw)) * 100
-  ) / 100;
+function calculateConnectionFee(): number {
+  return CONNECTION_FEE;
 }
 
 /**
@@ -127,7 +129,7 @@ export async function expressInterest(formData: FormData) {
     supabase.from("trips").select("traveler_id, status").eq("id", trip_id).single(),
     supabase
       .from("orders")
-      .select("requester_id, status, budget")
+      .select("requester_id, status")
       .eq("id", order_id)
       .single(),
   ]);
@@ -159,9 +161,7 @@ export async function expressInterest(formData: FormData) {
   // The database recomputes this in the INSERT trigger (migration 0009) — the
   // value sent here is only what the user is shown before the write, and it
   // keeps the insert valid on a database where 0009 has not been applied yet.
-  const connectionFee = calculateConnectionFee(
-    order.budget != null ? Number(order.budget) : null
-  );
+  const connectionFee = calculateConnectionFee();
 
   const { data, error } = await supabase
     .from("matches")

@@ -41,15 +41,16 @@ export default function TermosPage() {
         <LegalList
           items={[
             <>
-              Ela equivale a <strong>10% do orçamento do pedido</strong>, limitada a no mínimo
-              R$&nbsp;4,90 e no máximo R$&nbsp;29,90.
+              O valor é de <strong>R$&nbsp;19,90</strong> por match, qualquer que seja a rota,
+              o orçamento ou o tamanho da encomenda.
             </>,
             <>
-              Se o pedido não tiver orçamento informado, o valor é de R$&nbsp;9,90.
+              Quem paga é sempre quem quer destravar o contato. Cada match é cobrado uma vez
+              só — pagou, o contato fica liberado para sempre naquele match.
             </>,
             <>
-              O valor é calculado <strong>no servidor</strong>, a partir do pedido. Ele é
-              mostrado antes do pagamento e não muda depois que o match é aceito.
+              O valor é definido <strong>no servidor</strong>. Ele é mostrado antes do
+              pagamento e não muda depois que o match é aceito.
             </>,
           ]}
         />
