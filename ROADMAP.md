@@ -2,11 +2,13 @@
 
 **Alvo: domingo, 27 de setembro de 2026.** 59 dias a partir de 30/07.
 
-Decisões que definem este plano (atualizado em 30/07):
+Decisões que definem este plano (atualizado em 01/08):
 
 | | |
 |---|---|
-| Asaas | cadastro de produção **enviado, em análise** |
+| Asaas | verificação **aprovada**; API com problema do lado de lá, previsão de resolver até **06/08** |
+| Ambiente de estreia | **produção direto**, sem passar por sandbox (decidido em 01/08) |
+| Taxa de conexão | **R$ 19,90 fixos** (era 10% do orçamento, entre R$ 4,90 e R$ 29,90) |
 | Figura jurídica | **CPF** (pessoa física) |
 | Tipo de lançamento | **público aberto** |
 | Nome do produto | **Malotex** (era LevAí, era FlyDrop) |
@@ -191,10 +193,31 @@ Consequência exata, e é por isso que isto vem antes do 1.4:
 Sem isso o smoke test para no passo 4 de 7, e os passos 5 e 6 (chat, coleta, entrega)
 ficam inalcançáveis porque dependem do contato liberado.
 
-**O que fazer:** copiar as três do `.env.local` para a Vercel em Production. Manter
-`ASAAS_ENV=sandbox` — não é hora de cobrar de verdade. E apontar o webhook no painel do
-Asaas para `https://malotex.com.br/api/webhooks/asaas` com o mesmo token (é o 2.3, mas o
-smoke test não passa sem ele).
+**Estado em 01/08 — parado, sem previsão nossa.** A verificação do Asaas foi aprovada e a
+decisão passou a ser estrear direto em produção, sem sandbox. Mas a API está com problema
+do lado do Asaas; previsão de resolver até **06/08**. Medido hoje: `ASAAS_API_KEY` continua
+**vazia** no `.env.local` (a linha existe, o valor não), e as três vars seguem ausentes da
+Vercel. `ASAAS_WEBHOOK_TOKEN` já está gerado localmente e é o único dos três pronto.
+
+Repare que isto **não é problema de permissão nem de código** — nenhuma autorização
+destrava, porque a chave só passa a existir depois de gerada no painel do Asaas.
+
+**O que fazer quando a API voltar:**
+
+1. `asaas.com` → Integrações → Chave de API → Gerar chave (mostrada uma vez só)
+2. Validar a chave contra `https://api.asaas.com/v3/customers?limit=1` antes de qualquer
+   deploy — chave errada se manifesta como 401 genérico, e é melhor descobrir fora do ar
+3. Webhook em Integrações → Webhooks: URL `https://malotex.com.br/api/webhooks/asaas`,
+   token igual ao `ASAAS_WEBHOOK_TOKEN`, e exatamente os seis eventos que a rota trata —
+   `PAYMENT_RECEIVED`, `PAYMENT_CONFIRMED`, `PAYMENT_OVERDUE`, `PAYMENT_DELETED`,
+   `PAYMENT_REFUNDED`, `PAYMENT_CHARGEBACK_REQUESTED`
+4. As três vars na Vercel em Production, com `ASAAS_ENV=production` — a string literal,
+   porque `asaasFetch` faz `=== "production"` e qualquer outro valor cai em sandbox calado
+5. `vercel --prod`, porque env var nova só vale em build novo
+
+**Armadilha de ambiente cruzado:** o webhook relê a cobrança pela API (`fetchCharge`) antes
+de destravar. Chave de produção com `ASAAS_ENV=sandbox` faz esse GET dar 404, e o cliente
+paga sem receber o contato. Chave e `ASAAS_ENV` andam sempre juntos.
 
 **Aceite:** `POST /api/connection/checkout` autenticado devolve um Pix, não 501.
 
@@ -233,6 +256,42 @@ Favicon de mala nas cores da marca, substituindo o ícone padrão do Next.js:
 `src/app/icon.svg` (o que aparece na aba), `favicon.ico` para navegador antigo,
 `apple-icon.png` 180px, e `icon-192/512.png` referenciados no manifest.
 
+### 1.9 Rota fechada em aeroportos, e taxa fixa — ✅ **FEITO em 31/07 e 01/08**
+
+Duas mudanças que não estavam no plano e entraram porque bloqueavam o M2.
+
+**Aeroportos** (migration `0014`, commit `6120e98`). `origin_city` e `destination_city`
+eram texto livre, e as 9 linhas em produção guardavam seis grafias para três lugares —
+"florianopolis", "floripa", "Florianópolis", "congonhas", "cgh", "São Paulo". O filtro da
+aba Levar e o matching baixavam a tabela inteira e comparavam em JS via `cities.ts`. Com a
+rota num domínio fechado (tabela `airports` + `src/lib/airports.ts`, FLN mais os destinos
+com voo direto), o filtro voltou a ser `WHERE` em SQL e o `cities.ts` saiu do repo.
+
+As duas viagens cujo destino era "São Paulo" ficaram sem aeroporto de propósito: a cidade
+tem dois e escolher um seria inventar dado. Por isso a exigência de rota é condicionada ao
+status — `NOT VALID` não isenta linha antiga de um `UPDATE` futuro, e uma regra
+incondicional deixaria essas duas impossíveis de cancelar.
+
+**Taxa fixa** (migration `0015`, commit `868b5e5`). A fórmula antiga tinha piso de R$ 4,90
+e o mínimo de cobrança do Asaas é R$ 5,00 — todo pedido com orçamento abaixo de R$ 50, que
+é a faixa comum, geraria uma cobrança recusada na criação, com o usuário vendo só "não foi
+possível gerar a cobrança". Nunca esbarrou nisso porque os quatro pedidos existentes têm
+orçamento alto; era falha esperando o primeiro pedido barato, e só apareceria em produção.
+
+O segundo motivo é que `orders.budget` é digitado pelo solicitante e ninguém confere.
+
+Quem decide o preço é `private.calc_connection_fee`, não o TypeScript. Ela perdeu o
+`SECURITY DEFINER`, que existia só para ler `orders.budget` driblando o RLS. O parâmetro
+`p_order_id` ficou: o patamar de **R$ 39,90 depende de pedido prioritário**, que ainda não
+existe no schema.
+
+Os Termos de Uso descreviam a fórmula antiga e mudaram junto; `TERMS_VERSION` foi para
+`2026-07-31`.
+
+**Pendência que isso abriu:** `TERMS_VERSION` só é gravado no cadastro e **não existe fluxo
+de re-aceite**. Os 9 usuários atuais nunca verão os termos novos. Irrelevante com base de
+teste, mas precisa de um aviso de mudança antes do lançamento público.
+
 ### 1.7 Decidir CPF vs MEI com contador — **[VOCÊ]**
 
 Precisa sair em julho porque muda os termos, e os termos vão para revisão jurídica no M3.
@@ -248,14 +307,17 @@ Detalhes em Riscos.
 > **Saída:** alguém que não é você pagou a taxa e o contato desbloqueou sozinho, sem
 > ninguém tocar no banco.
 
-### 2.1 Pix ponta a ponta
+### 2.1 Pix ponta a ponta — **bloqueado até ~06/08**, ver 1.3b
 
-`ASAAS_API_KEY` está vazia; a taxa de conexão nunca foi cobrada uma vez. A correção do QR
-que fiz em 28/07 jamais executou.
+`ASAAS_API_KEY` continua vazia; a taxa de conexão nunca foi cobrada uma vez. A correção do
+QR que fiz em 28/07 jamais executou. A verificação do Asaas foi aprovada, mas a API está
+com problema do lado deles.
 
-- Chaves de produção quando o cadastro aprovar
-- Sandbox primeiro: gerar cobrança → pagar → webhook → `unlocked_at` preenchido
-- Produção depois, com valor mínimo real, do seu próprio bolso
+A decisão de 01/08 foi estrear **direto em produção**, sem sandbox. O sandbox teria
+coberto os erros que só aparecem em execução — token com espaço sobrando, evento não
+marcado no painel, `ASAAS_ENV` desalinhado com a chave — então o primeiro teste real
+substitui esse papel e merece cuidado proporcional: um match de verdade, com o valor
+cheio de R$ 19,90, do seu próprio bolso, antes de qualquer usuário chegar perto.
 
 **Aceite:** `matches.unlocked_at` preenchido pelo webhook, sem intervenção manual.
 
