@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FlyDrop / LevAí
 
-## Getting Started
+Este repositório reúne as duas aplicações do projeto:
 
-First, run the development server:
+- aplicação web em Next.js, localizada na raiz do repositório;
+- aplicativo mobile em Expo/React Native, localizado em [`mobile/`](mobile/).
+
+## Aplicação web
+
+Requisitos: Node.js e npm.
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+A aplicação ficará disponível em [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Validações disponíveis:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run lint
+npm run build
+```
 
-## Learn More
+## Aplicativo mobile
 
-To learn more about Next.js, take a look at the following resources:
+Requisitos: Node.js 24 e pnpm.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+cd mobile
+pnpm install
+pnpm start
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Para abrir diretamente no navegador:
 
-## Deploy on Vercel
+```bash
+pnpm web
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Validações disponíveis:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+pnpm typecheck
+pnpm build:web
+```
+
+Mais detalhes sobre o MVP mobile estão em [`mobile/README.md`](mobile/README.md).
+
+## Colaboração
+
+Antes de começar uma alteração, atualize sua cópia local:
+
+```bash
+git switch main
+git pull
+git switch -c minha-alteracao
+```
+
+Depois de concluir:
+
+```bash
+git add <arquivos-alterados>
+git commit -m "Descrição curta da alteração"
+git push -u origin minha-alteracao
+```
+
+Abra um Pull Request no GitHub para que a outra pessoa possa revisar e incorporar a mudança na `main`.
