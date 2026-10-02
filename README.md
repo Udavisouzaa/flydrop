@@ -1,36 +1,28 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Malotex
 
-## Getting Started
+**Protótipo de marketplace para conectar pessoas que precisam enviar itens a viajantes com trajetos compatíveis.**
 
-First, run the development server:
+O projeto explora a publicação de viagens e pedidos, a combinação entre as partes e a comunicação depois da conexão. O objetivo do repositório é mostrar o produto em construção e as decisões de implementação, sem apresentar funcionalidades ainda não verificadas como serviço pronto.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Por que o repositório se chama flydrop?
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+O nome do produto evoluiu de **FlyDrop** para **LevAí** e, por fim, **Malotex**. A pasta, o repositório e parte da infraestrutura mantiveram o nome técnico flydrop para preservar integrações existentes. **Malotex é o nome definitivo do produto.**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## O que está no código
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Interface web em Next.js e TypeScript.
+- Estruturas para perfis, viagens, pedidos, propostas, mensagens, avaliações e pagamentos.
+- Banco de dados e autenticação com Supabase.
+- Planejamento e limites conhecidos registrados em [ROADMAP.md](ROADMAP.md) e [VALIDACAO.md](VALIDACAO.md).
 
-## Learn More
+## Estado do projeto
 
-To learn more about Next.js, take a look at the following resources:
+O [site do Malotex](https://malotex.com.br) está acessível, mas isso não confirma que todos os fluxos autenticados, pagamentos, reembolsos e disputas estejam prontos. O roadmap contém pendências e datas de planejamento que podem estar desatualizadas. Este repositório deve ser lido como um projeto em desenvolvimento.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Executar localmente
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Instale as dependências com npm install e rode npm run dev. As áreas que dependem de autenticação, banco ou pagamentos exigem a configuração dos respectivos serviços externos. Não publique credenciais no repositório.
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**English:** Malotex is a work in progress marketplace prototype connecting travelers with people who need to send items along compatible routes. The repository retains its technical name flydrop from an earlier branding stage. A reachable website does not verify end to end functionality or payment readiness.
