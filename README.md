@@ -4,9 +4,11 @@
 
 O projeto explora a publicação de viagens e pedidos, a combinação entre as partes e a comunicação depois da conexão. O objetivo do repositório é mostrar o produto em construção e as decisões de implementação, sem apresentar funcionalidades ainda não verificadas como serviço pronto.
 
-## Por que o repositório se chama flydrop?
+## Evolução do projeto
 
-O nome do produto evoluiu de **FlyDrop** para **LevAí** e, por fim, **Malotex**. A pasta, o repositório e parte da infraestrutura mantiveram o nome técnico flydrop para preservar integrações existentes. **Malotex é o nome definitivo do produto.**
+A [MALAH](https://github.com/Udavisouzaa/MALAH) foi uma etapa inicial desta mesma ideia, registrada em outro repositório como experimento de landing page. Depois, o produto passou pelos nomes **FlyDrop** e **LevAí**, chegando ao nome definitivo **Malotex**. Esses repositórios e nomes representam fases do mesmo projeto, não startups independentes.
+
+A pasta, este repositório e parte da infraestrutura mantiveram o nome técnico flydrop para preservar integrações existentes.
 
 ## O que está no código
 
@@ -25,4 +27,4 @@ Instale as dependências com npm install e rode npm run dev. As áreas que depen
 
 ---
 
-**English:** Malotex is a work in progress marketplace prototype connecting travelers with people who need to send items along compatible routes. The repository retains its technical name flydrop from an earlier branding stage. A reachable website does not verify end to end functionality or payment readiness.
+**English:** Malotex is a work in progress marketplace prototype for connecting travelers with people who need to send items along compatible routes. [MALAH](https://github.com/Udavisouzaa/MALAH) was an early exploration of the same project; the technical repository name flydrop remains from a later branding stage. A reachable website does not verify end to end functionality or payment readiness.
