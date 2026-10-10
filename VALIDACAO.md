@@ -1,4 +1,13 @@
-# Validação FlyDrop — conversas reais
+# Validação Malotex — conversas reais
+
+> ⚠️ **Este roteiro nunca foi executado.** Zero das 30 conversas aconteceram, e o produto
+> foi construído inteiro sem nenhuma delas. Fica no repositório como registro — era o
+> documento certo, e ignorá-lo foi o erro mais caro do projeto. Ver
+> **Por que parou** no [ROADMAP.md](ROADMAP.md).
+>
+> O arquivo ainda dizia "FlyDrop" no título dois meses depois do rebrand, e descrevia um
+> modelo de preço abandonado em 31/07. Os documentos técnicos ficaram todos atualizados; o
+> único sobre pessoas apodreceu. Isso diz bastante sobre onde a atenção estava.
 
 Meta: 30 conversas. Registrar **no momento** (ou logo depois), não de memória no fim do dia.
 
@@ -39,19 +48,25 @@ Roteiro curto:
 
 <!-- copie linhas conforme precisar -->
 
-## Placar
+## Placar — final
 
-- Conversas: 0 / 30
+- Conversas: **0 / 30**
 - Já teve a dor: 0
 - Já pagou alguém por isso: 0
 - Deixaram contato: 0
 
+Nenhuma das perguntas abaixo foi respondida, e qualquer uma delas custava uma tarde.
+
 ## O que decide o rumo do produto
 
-A taxa de conexão está hoje em **10% do orçamento do pedido, entre R$ 4,90 e
-R$ 29,90** (padrão R$ 9,90 quando não há orçamento). Se as conversas apontarem
-consistentemente para outro patamar, é só ajustar `calculateConnectionFee` em
-`src/app/matches/actions.ts`.
+A taxa de conexão terminou em **R$ 19,90 fixos** — e vale registrar como esse número foi
+escolhido, porque é o retrato do problema. A fórmula anterior era 10% do orçamento, com
+piso de R$ 4,90; o mínimo de cobrança do Asaas é R$ 5,00, o que faria todo pedido de
+orçamento baixo gerar cobrança recusada. **O preço foi definido pelo mínimo do processador
+de pagamento, não por nenhuma conversa com cliente.**
+
+Quem decide o valor hoje é `private.calc_connection_fee` no banco, não o TypeScript
+(migration `0015`).
 
 Perguntas em aberto que a validação deveria responder:
 

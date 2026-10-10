@@ -1,25 +1,54 @@
-# Malotex — Roadmap até o lançamento
+# Malotex — registro de desenvolvimento
 
-**Alvo: domingo, 27 de setembro de 2026.** 59 dias a partir de 30/07.
+**Escopo fechado em 10 de outubro de 2026.**
 
-Decisões que definem este plano (atualizado em 01/08):
+Este documento era um cronograma até um lançamento marcado para 27/09/2026. O lançamento
+não aconteceu, o desenvolvimento parou, e o documento foi convertido em registro: o que
+foi construído, o que ficou faltando, e por que parou. Não sobrou nenhum prazo aqui —
+prazo sem ninguém trabalhando é ficção, e deixar as datas antigas no texto só fazia o
+projeto parecer esquecido em vez de encerrado.
+
+A retrospectiva honesta está no fim, em **[Por que parou](#por-que-parou)**. É a parte
+mais útil daqui.
+
+## O que funciona
+
+Autenticação por e-mail e por Google, publicação de viagens e de pedidos sobre uma rota
+fechada de aeroportos, proposta e aceite de match, chat entre as partes, confirmação de
+coleta e de entrega, avaliações, e os direitos de LGPD (exportar dados e excluir conta).
+São 23 rotas, 9 tabelas com RLS em todas, 15 migrations. `tsc`, `eslint` e `next build`
+passam limpos.
+
+## O que nunca funcionou
+
+**A receita.** A taxa de conexão de R$ 19,90 nunca foi cobrada uma única vez. A
+`ASAAS_API_KEY` nunca existiu em produção, então o paywall responde 501 e `unlocked_at`
+nunca foi preenchido por um pagamento de verdade. Todo o código de cobrança, webhook,
+idempotência e reconciliação está escrito, revisado — e nunca executou contra o Asaas.
+
+**A verificação por gente.** Nenhuma tela autenticada foi usada por um humano. O smoke
+test (1.4) nunca foi rodado, nem nos quatro passos que não dependiam do Asaas.
+
+**A validação da demanda.** O `VALIDACAO.md` registra **0 de 30** conversas. O produto foi
+construído inteiro sem uma única conversa com cliente potencial.
+
+## Decisões de produto que o código reflete
 
 | | |
 |---|---|
-| Asaas | verificação **aprovada**; API com problema do lado de lá, previsão de resolver até **06/08** |
-| Ambiente de estreia | **produção direto**, sem passar por sandbox (decidido em 01/08) |
-| Taxa de conexão | **R$ 19,90 fixos** (era 10% do orçamento, entre R$ 4,90 e R$ 29,90) |
-| Figura jurídica | **CPF** (pessoa física) |
-| Tipo de lançamento | **público aberto** |
-| Nome do produto | **Malotex** (era LevAí, era FlyDrop) |
-| Domínio | **`malotex.com.br` comprado e no ar**, com certificado |
+| Taxa de conexão | **R$ 19,90 fixos**, cobrados para liberar o contato (era 10% do orçamento) |
+| Fluxo do dinheiro | só a taxa passa pela plataforma; a entrega as partes combinam fora |
+| Rota | domínio **fechado** de aeroportos (FLN e destinos com voo direto), não texto livre |
+| Figura jurídica | **CPF** — nunca revisto com contador |
+| Nome | **Malotex** (foi LevAí, foi FlyDrop, começou como MALAH) |
+| Domínio | `malotex.com.br`, no ar, com certificado |
 
-O nome mudou em 30/07. A infraestrutura **não** mudou junto, de propósito: a pasta, o
-repositório no GitHub, o projeto na Vercel e o projeto no Supabase continuam se chamando
-`flydrop`. Renomear isso quebraria remotes, URLs de deploy e integrações por ganho
-puramente cosmético.
+O nome mudou em 30/07 e a infraestrutura **não** mudou junto, de propósito: a pasta, o
+repositório no GitHub, o projeto na Vercel e o do Supabase continuam se chamando
+`flydrop`. Renomear quebraria remotes, URLs de deploy e integrações por ganho puramente
+cosmético.
 
-**[VOCÊ]** = depende de você (compra, conta, decisão, terceiro). Sem marcação = código, faço eu.
+**[VOCÊ]** marca o que dependia de conta, compra, decisão ou terceiro — não de código.
 
 ---
 
@@ -60,24 +89,28 @@ máquina (navegadores do Playwright não instalados).
 
 ---
 
-## Como ler o progresso
+## Como ler os marcos
 
-Cada marco tem uma **pergunta de saída**. Se a resposta não for "sim", o marco não
-fechou, mesmo com tudo riscado. É o que evita chegar em 20/09 com a lista completa e
-nada funcionando.
+Cada marco tinha uma **pergunta de saída**: se a resposta não fosse "sim", o marco não
+fechava, mesmo com todos os itens riscados. A ideia era evitar chegar no fim com a lista
+completa e nada funcionando. Mantive as perguntas porque elas são o que o documento teve
+de mais útil — e porque a resposta delas é o diagnóstico do projeto.
 
-| Marco | Prazo | Pergunta de saída |
+| Marco | Pergunta de saída | Resposta real |
 |---|---|---|
-| M1 Fundação | 03/08 | O que já foi construído está no ar e uma pessoa real usou? |
-| M2 Dinheiro | 17/08 | Alguém pagou a taxa e o contato desbloqueou sozinho? |
-| M3 Confiança | 31/08 | Se quebrar às 3h da manhã, eu fico sabendo? |
-| M4 Produto | 14/09 | Um estranho entende o app em 30 segundos? |
-| M5 Ensaio | 21/09 | 20 pessoas reais usaram sem eu explicar nada? |
-| M6 Lançar | 27/09 | — |
+| M1 Fundação | O que já foi construído está no ar e uma pessoa real usou? | está no ar; **ninguém usou** |
+| M2 Dinheiro | Alguém pagou a taxa e o contato desbloqueou sozinho? | **não**, nunca foi cobrada |
+| M3 Confiança | Se quebrar às 3h da manhã, eu fico sabendo? | **não**, nunca houve monitoramento |
+| M4 Produto | Um estranho entende o app em 30 segundos? | nunca testado com estranho |
+| M5 Ensaio | 20 pessoas reais usaram sem eu explicar nada? | **não** |
+| M6 Lançar | — | não aconteceu |
+
+Cinco das seis perguntas têm a mesma resposta, e ela não é sobre código: **o produto nunca
+encontrou um usuário.**
 
 ---
 
-# M1 — Fundação estável · até 03/08
+# M1 — Fundação estável
 
 > **Objetivo:** parar de construir sobre areia. O trabalho já feito está aplicado, no ar,
 > e verificado por olhos humanos.
@@ -193,11 +226,12 @@ Consequência exata, e é por isso que isto vem antes do 1.4:
 Sem isso o smoke test para no passo 4 de 7, e os passos 5 e 6 (chat, coleta, entrega)
 ficam inalcançáveis porque dependem do contato liberado.
 
-**Estado em 01/08 — parado, sem previsão nossa.** A verificação do Asaas foi aprovada e a
-decisão passou a ser estrear direto em produção, sem sandbox. Mas a API está com problema
-do lado do Asaas; previsão de resolver até **06/08**. Medido hoje: `ASAAS_API_KEY` continua
-**vazia** no `.env.local` (a linha existe, o valor não), e as três vars seguem ausentes da
-Vercel. `ASAAS_WEBHOOK_TOKEN` já está gerado localmente e é o único dos três pronto.
+**Desfecho: nunca resolveu.** Em 01/08 a verificação do Asaas estava aprovada, a decisão
+era estrear direto em produção sem sandbox, e a API estava com problema do lado deles, com
+previsão de resolver até 06/08. A previsão não se cumpriu, ninguém voltou ao assunto, e as
+três variáveis nunca chegaram à Vercel. `ASAAS_WEBHOOK_TOKEN` foi gerado localmente e é o
+único dos três que ficou pronto. **Foi aqui que o projeto travou de fato** — e, como está
+registrado em Por que parou, o travamento virou álibi para o 1.4, que não dependia disto.
 
 Repare que isto **não é problema de permissão nem de código** — nenhuma autorização
 destrava, porque a chave só passa a existir depois de gerada no painel do Asaas.
@@ -299,7 +333,7 @@ Detalhes em Riscos.
 
 ---
 
-# M2 — Dinheiro e comunicação · 04/08 → 17/08
+# M2 — Dinheiro e comunicação
 
 > **Objetivo:** a única receita do app funciona ponta a ponta, e as pessoas ficam sabendo
 > das coisas sem precisar abrir o app.
@@ -307,11 +341,11 @@ Detalhes em Riscos.
 > **Saída:** alguém que não é você pagou a taxa e o contato desbloqueou sozinho, sem
 > ninguém tocar no banco.
 
-### 2.1 Pix ponta a ponta — **bloqueado até ~06/08**, ver 1.3b
+### 2.1 Pix ponta a ponta — ❌ **nunca executado**, ver 1.3b
 
-`ASAAS_API_KEY` continua vazia; a taxa de conexão nunca foi cobrada uma vez. A correção do
-QR que fiz em 28/07 jamais executou. A verificação do Asaas foi aprovada, mas a API está
-com problema do lado deles.
+`ASAAS_API_KEY` nunca saiu do vazio; a taxa de conexão nunca foi cobrada uma única vez. A
+correção do QR feita em 28/07 jamais rodou. A verificação do Asaas foi aprovada, mas a API
+ficou com problema do lado deles e o assunto morreu aí.
 
 A decisão de 01/08 foi estrear **direto em produção**, sem sandbox. O sandbox teria
 coberto os erros que só aparecem em execução — token com espaço sobrando, evento não
@@ -421,12 +455,13 @@ lançamento.
 
 ### 2.7 Plano B de PSP — **[VOCÊ]**
 
-Se o Asaas negar ou limitar PF, não existe receita e o modelo para. Sem resposta até
-**10/08**, abrir cadastro paralelo em Mercado Pago ou PagSeguro.
+Se o Asaas negasse ou limitasse PF, não haveria receita e o modelo pararia. O plano era:
+sem resposta até 10/08, abrir cadastro paralelo em Mercado Pago ou PagSeguro. **O prazo
+passou sem decisão e sem plano B** — o item ficou parado junto com o 2.1.
 
 ---
 
-# M3 — Confiança · 18/08 → 31/08
+# M3 — Confiança
 
 > **Objetivo:** o app avisa quando quebra, e um humano com OAB leu o que você está
 > publicando.
@@ -490,7 +525,7 @@ no teclado, `aria-label` nos botões só de ícone, leitor de tela no fluxo de c
 
 ---
 
-# M4 — Produto pronto para estranho · 01/09 → 14/09
+# M4 — Produto pronto para estranho
 
 > **Objetivo:** parar de otimizar para quem já sabe usar.
 >
@@ -498,9 +533,10 @@ no teclado, `aria-label` nos botões só de ícone, leitor de tela no fluxo de c
 
 ### 4.1 O marketplace vazio — **[VOCÊ]**, e é o maior risco de produto
 
-Em 27/09 alguém entra, não vê nenhuma viagem publicada, e vai embora para não voltar.
-Num beta fechado dá para contornar conversando; num lançamento público você tem **uma**
-primeira impressão por pessoa.
+No dia do lançamento alguém entra, não vê nenhuma viagem publicada, e vai embora para não
+voltar. Num beta fechado dá para contornar conversando; num lançamento público você tem
+**uma** primeira impressão por pessoa. Nunca houve recrutamento de viajantes, então o
+marketplace seguiu vazio até o fim.
 
 Precisa haver viagens reais no ar **antes** de abrir. Isso é recrutamento, começa em
 agosto, e não é código. Decidir também: abre por cidade (Floripa primeiro, por exemplo)
@@ -551,7 +587,7 @@ mais comuns antes de virar mensagem.
 
 ---
 
-# M5 — Ensaio geral · 15/09 → 21/09
+# M5 — Ensaio geral
 
 > **Objetivo:** descobrir com 20 pessoas o que você descobriria com 2.000, mas em
 > condições que dá para consertar.
@@ -590,11 +626,12 @@ Backup não testado não é backup.
 
 ---
 
-# M6 — Lançamento · 22/09 → 27/09
+# M6 — Lançamento
 
-### 6.1 Congelar features em 22/09
+### 6.1 Congelar features antes do lançamento
 
-Nada novo entra. Só correção de bug. Feature que entra na véspera é a que quebra.
+Nada novo entra na última semana. Só correção de bug. Feature que entra na véspera é a que
+quebra.
 
 ### 6.2 Checklist final
 
@@ -604,13 +641,14 @@ e-mail saindo da caixa de entrada · termos na versão revisada pelo advogado ·
 
 ### 6.3 Lançar
 
-Ver Riscos sobre a data cair num domingo.
+Não aconteceu.
 
 ---
 
-## Riscos que podem furar a data
+## Riscos conhecidos quando o escopo foi fechado
 
-Nenhum é problema de código. Nenhum se resolve trabalhando mais horas.
+Nenhum é problema de código. Nenhum se resolveria trabalhando mais horas — e é por isso
+que trabalhar mais horas no código não resolveu.
 
 **1. CPF + lançamento público aberto.** A tensão mais séria do plano. Cobrar taxa do
 público como pessoa física traz três consequências: os termos precisam identificar o
@@ -619,8 +657,9 @@ nota fiscal como PF é impraticável; e o Asaas costuma aprovar PF com limite me
 abre online, custa pouco e resolve os três — mas quem decide é contador, não eu. Precisa
 sair em julho, porque muda os termos que vão ao advogado no M3.
 
-**2. O Asaas pode negar ou limitar.** Sem PSP não há receita e o modelo inteiro para.
-Não dá para descobrir em setembro. Prazo de decisão: 10/08.
+**2. O Asaas pode negar ou limitar.** Sem PSP não há receita e o modelo inteiro para. O
+prazo de decisão era 10/08 e passou em branco. Na prática o risco se concretizou pela via
+mais boba: a chave simplesmente nunca foi gerada e cadastrada.
 
 **3. Marketplace vazio.** O maior risco de produto, detalhado em 4.1.
 
@@ -631,9 +670,10 @@ prova que compilam, não que funcionam.
 **5. Termos escritos por IA, nunca lidos por advogado.** Com LGPD valendo e você como
 controlador pessoa física, essa revisão não é opcional num lançamento público.
 
-**6. 27/09 é domingo.** Bom para tráfego de consumidor, ruim para suporte e para acionar
-terceiro se algo der errado. Considere quinta 24/09, deixando o fim de semana para
-acompanhar com folga.
+**6. Nenhuma receita jamais verificada.** Os cinco riscos acima foram registrados em
+julho e agosto. O sexto é o que ficou claro só depois: um produto que nunca cobrou de
+ninguém não tem modelo de negócio testado, tem hipótese de modelo de negócio. Ver
+**[Por que parou](#por-que-parou)**.
 
 ---
 
@@ -663,13 +703,79 @@ Recrutar viajantes (4.1) ─────────────── começa e
 ```
 
 O ramo do domínio destravou em 30/07 e levou o rebrand, o login com Google e o e-mail
-junto. Sobram dois gargalos, e os dois são seus: **a aprovação do Asaas**, que não
-depende de ninguém aqui e tem prazo de decisão em 10/08, e **o smoke test (1.4)** — o
-único item que ainda separa "compila e está no ar" de "funciona". Depois do episódio da
-0009 em 1.1b, essa distinção deixou de ser retórica.
+junto. Sobraram dois gargalos: **as chaves do Asaas**, que nunca chegaram à Vercel, e **o
+smoke test (1.4)** — o único item que separava "compila e está no ar" de "funciona".
+Depois do episódio da `0009` (ver 1.1b), essa distinção deixou de ser retórica.
 
-Uma correção de 31/07: os dois itens que o roadmap listava como pré-requisitos do smoke
-test (1.2 e 1.3) já estavam prontos desde 29/07 — o roadmap é que não tinha sido
-atualizado. O pré-requisito real é o 1.3b, que ninguém tinha visto. A aprovação do Asaas
-**não** bloqueia o smoke test: a chave de sandbox já existe no `.env.local` e funciona sem
-aprovação. O que bloqueia é ela não ter sido copiada para a Vercel.
+Vale registrar o erro de leitura que esse diagrama esconde. O smoke test aparece aqui como
+bloqueado pelo Asaas, e **não era**: dos seus 7 passos, só o 4, 5 e 6 dependiam de
+pagamento. Os passos 1, 2, 3 e 7 — cadastro, publicar viagem e pedido, propor e aceitar
+match, exportar dados e excluir conta — estavam livres desde julho, custavam cerca de 40
+minutos, e nunca foram executados. O bloqueio externo serviu de álibi para o item que não
+dependia dele.
+
+---
+
+## Por que parou
+
+Registrado por honestidade, e porque é a parte mais útil deste documento — inclusive para
+mim mesmo mais tarde.
+
+**A causa declarada foi o Asaas.** A chave de API nunca saiu do lado deles no prazo, e sem
+chave não havia como cobrar nem como testar a cobrança. Isso é verdade, e não é a causa.
+
+**A causa real é que a premissa nunca foi testada.** Em cerca de três meses saíram 15
+migrations, triggers de integridade no banco, rate limiting com dois backends, comparação
+de token em tempo constante, hardening de RLS contra `PATCH` direto no PostgREST,
+exportação e exclusão de dados por LGPD, e um paywall com liquidação idempotente e
+reconciliação. No mesmo período: **zero conversas com clientes potenciais.** O esforço de
+engenharia foi desproporcional ao risco técnico, que era baixo, e inversamente
+proporcional ao risco real, que era de mercado. Blindar o PostgREST contra injeção de
+notificação é trabalho correto — num produto com 9 contas de teste e nenhuma receita, era
+também o lugar confortável de onde não se enxerga a pergunta difícil.
+
+**E tem a conta que nunca foi feita.** A rota é doméstica: FLN e os destinos com voo
+direto. Para mandar um item de Florianópolis a São Paulo, os Correios cobram na faixa de
+R$ 25 a 45, com rastreio, seguro e porta a porta. A taxa de conexão do Malotex é R$ 19,90
+**antes** do que o viajante for cobrar, exige dois encontros presenciais em aeroporto, e
+não oferece rastreio, seguro nem recurso se algo der errado. O crowdshipping de mala fecha
+a conta em rota **internacional**, onde existe arbitragem de imposto e de disponibilidade
+de produto que paga a fricção toda; em rota doméstica essa diferença não existe. Essa
+comparação de três linhas não aparece em nenhuma versão anterior deste arquivo, e deveria
+ter sido a primeira linha dele.
+
+Some-se o que o setor já tinha mostrado: a maioria das plataformas de entrega colaborativa
+fechou, e a que mais se aproxima deste modelo no Brasil retém o pagamento até a entrega —
+exatamente o mecanismo que aqui foi removido de propósito, para evitar custódia de
+recursos de terceiros e a exigência de CNPJ. A escolha de arquitetura que simplificou o
+jurídico é a mesma que tirou do produto a razão de existir depois do primeiro match: com o
+contato entregue, a plataforma passa a ser um custo evitável, e a receita por par de
+usuários fica travada em R$ 19,90 para sempre.
+
+**O que eu faria diferente, em uma frase:** teria intermediado três entregas à mão, por
+WhatsApp, cobrando por Pix manual, antes de escrever a primeira migration.
+
+### O que fica de aproveitável
+
+O código, e algumas decisões que vale ler:
+
+- **Permissão modelada no banco, não na aplicação.** As migrations `0008`–`0015` movem
+  para triggers e policies o que o TypeScript não consegue garantir: quem pode escrever
+  `kyc_verified`, `connection_fee`, `unlocked_at` e os contadores de reputação. O preço de
+  um match é decidido por `private.calc_connection_fee`, não pelo cliente.
+- **O episódio da `0009`.** Uma migration revogou o `EXECUTE` de `calc_connection_fee` de
+  `authenticated` — e `guard_match_insert()`, que é `SECURITY INVOKER` de propósito, chama
+  justamente essa função. Resultado: por um dia, **nenhuma proposta podia ser criada em
+  produção**, com a mensagem crua escondida atrás de um "Não foi possível criar a
+  proposta.". Verificar a permissão lendo o catálogo do Postgres provou que a policy estava
+  como eu tinha escrito; não provou que o app funcionava. Foi a lição mais cara do projeto
+  e a mais transferível.
+- **Fechar a rota num domínio de aeroportos** (`0014`). O campo era texto livre e 9 linhas
+  em produção guardavam seis grafias para três lugares — "florianopolis", "floripa",
+  "Florianópolis", "congonhas", "cgh", "São Paulo". Virar tabela com chave estrangeira
+  devolveu o filtro para o SQL e tornou impossível gravar rota que a operação não atende.
+- **A liquidação idempotente** em `src/lib/connection-settlement.ts`. Quem serializa o
+  destravamento é um `UPDATE ... WHERE unlocked_at is null`, não uma leitura seguida de
+  escrita — e a função é compartilhada pelo webhook e pela reconciliação justamente para
+  que as duas não divirjam. Nunca rodou contra o Asaas de verdade; o raciocínio está todo
+  em comentário no arquivo.
