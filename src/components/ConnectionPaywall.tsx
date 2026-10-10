@@ -9,11 +9,19 @@ interface PixCharge {
   expiresAt?: string | null;
 }
 
+/** Por quanto tempo a tela fica sozinha esperando o webhook chegar. */
+const POLL_FOR_MS = 10 * 60 * 1000;
+
 /**
  * Paywall shown on an accepted-but-locked match: generates a Pix charge for
  * the connection fee and polls until the Asaas webhook flips
  * `matches.unlocked_at`, at which point the server component re-renders with
  * the contact info revealed.
+ *
+ * O botão "já paguei" é a saída para quando esse webhook não chega — Vercel
+ * fria, Asaas desistindo de reentregar — e também para quem fechou a aba e
+ * voltou depois do fim do polling. Ele confere a cobrança direto no Asaas em
+ * vez de gerar outra, que é o que o botão de cima faria com um Pix vencido.
  */
 export default function ConnectionPaywall({
   matchId,
@@ -27,21 +35,26 @@ export default function ConnectionPaywall({
   const router = useRouter();
   const [charge, setCharge] = useState<PixCharge | null>(null);
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [pollExpired, setPollExpired] = useState(false);
   const [copied, setCopied] = useState(false);
   /** Fallback when the clipboard API is unavailable: show the raw payload. */
   const [showPayload, setShowPayload] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Once a QR is on screen, watch for the unlock instead of making the user
-  // guess when to refresh. Give up after 10 minutes so we don't poll forever.
+  // guess when to refresh. Give up after 10 minutes so we don't poll forever —
+  // e diga que desistiu, senão a tela fica parada sem explicar por quê.
   useEffect(() => {
     if (!charge) return;
 
     const startedAt = Date.now();
     pollRef.current = setInterval(() => {
-      if (Date.now() - startedAt > 10 * 60 * 1000) {
+      if (Date.now() - startedAt > POLL_FOR_MS) {
         if (pollRef.current) clearInterval(pollRef.current);
+        setPollExpired(true);
         return;
       }
       router.refresh();
@@ -55,6 +68,7 @@ export default function ConnectionPaywall({
   async function handleGenerate() {
     setLoading(true);
     setError(null);
+    setNotice(null);
     try {
       const res = await fetch("/api/connection/checkout", {
         method: "POST",
@@ -68,10 +82,49 @@ export default function ConnectionPaywall({
         return;
       }
       setCharge(data as PixCharge);
+      setPollExpired(false);
     } catch {
       setError("Falha de conexão. Tente novamente.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  /**
+   * Confere a cobrança no Asaas. Nada aqui destrava: quem decide é o servidor,
+   * relendo a cobrança pela API autenticada. Apertar sem ter pago devolve
+   * "ainda não identificamos" quantas vezes for.
+   */
+  async function handleCheckPayment() {
+    setChecking(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await fetch("/api/connection/reconcile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ match_id: matchId }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data?.error ?? "Não foi possível conferir agora.");
+        return;
+      }
+
+      if (data?.unlocked) {
+        setNotice("Pagamento confirmado! Liberando o contato…");
+        router.refresh();
+        return;
+      }
+
+      setNotice(
+        "Ainda não identificamos o pagamento. O Pix pode levar alguns instantes — espere um pouco e confira de novo."
+      );
+    } catch {
+      setError("Falha de conexão. Tente novamente.");
+    } finally {
+      setChecking(false);
     }
   }
 
@@ -119,6 +172,8 @@ export default function ConnectionPaywall({
         <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>
       )}
 
+      {notice && <p className="mt-3 text-sm text-neutral-500">{notice}</p>}
+
       {charge && (
         <div className="mt-5 space-y-3">
           {charge.encodedImage && (
@@ -146,11 +201,25 @@ export default function ConnectionPaywall({
             />
           )}
           <p className="text-xs text-neutral-500">
-            Assim que o pagamento cair, o contato é liberado automaticamente
-            nesta tela.
+            {pollExpired
+              ? "Paramos de conferir sozinhos. Se você já pagou, use o botão abaixo."
+              : "Assim que o pagamento cair, o contato é liberado automaticamente nesta tela."}
           </p>
         </div>
       )}
+
+      {/* Sempre visível, inclusive antes de gerar cobrança: quem pagou e voltou
+          depois precisa conferir, não gerar outro Pix. */}
+      <div className="mt-4 border-t border-black/5 pt-4 dark:border-white/5">
+        <button
+          type="button"
+          onClick={handleCheckPayment}
+          disabled={checking}
+          className="text-xs font-medium text-neutral-500 underline underline-offset-4 hover:text-neutral-800 disabled:opacity-50 dark:hover:text-neutral-200"
+        >
+          {checking ? "Conferindo pagamento..." : "Já paguei, conferir agora"}
+        </button>
+      </div>
     </div>
   );
 }

@@ -12,6 +12,13 @@ export const connectionCheckoutSchema = z.object({
 
 export type ConnectionCheckoutInput = z.infer<typeof connectionCheckoutSchema>;
 
+/**
+ * A reconciliação ("já paguei") recebe o mesmo que o checkout: só o id do
+ * match. Quais cobranças conferir sai do banco, não do pedido — senão o
+ * cliente escolheria qual cobrança usa para destravar qual match.
+ */
+export const connectionReconcileSchema = connectionCheckoutSchema;
+
 /** Shape of the Asaas webhook payload we actually depend on. */
 export const asaasWebhookSchema = z.object({
   event: z.string(),

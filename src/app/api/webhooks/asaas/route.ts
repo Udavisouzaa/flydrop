@@ -3,28 +3,26 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import {
   ASAAS_FAILED_EVENTS,
   ASAAS_PAID_EVENTS,
-  fetchCharge,
   verifyWebhookToken,
 } from "@/lib/asaas";
+import { settleConnectionFee } from "@/lib/connection-settlement";
 import { asaasWebhookSchema } from "@/lib/validations/payment";
-import { createNotification } from "@/lib/utils/notifications";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 /**
- * Pix amounts are small and stored as numeric; a cent of float drift shouldn't
- * block a legitimate unlock, but anything larger should.
- */
-const AMOUNT_TOLERANCE = 0.01;
-
-/**
- * Asaas webhook — the only path that may set `matches.unlocked_at`.
+ * Asaas webhook — o caminho normal para destravar um match.
  *
- * The DB enforces this too: the `guard_unlock_fields` trigger rejects any
- * write to unlocked_at/unlocked_by that doesn't come from `service_role`, so
- * a user can't self-unlock even if they got hold of an authenticated token.
+ * O banco também impõe isso: o trigger `guard_unlock_fields` recusa qualquer
+ * escrita em unlocked_at/unlocked_by que não venha do `service_role`, então
+ * nem com um token autenticado em mãos alguém se destrava sozinho.
  *
- * Configure in Asaas > Integrações > Webhooks pointing at
- * `/api/webhooks/asaas`, with an access token matching ASAAS_WEBHOOK_TOKEN.
+ * Configurar em Asaas > Integrações > Webhooks apontando para
+ * `/api/webhooks/asaas`, com token igual a ASAAS_WEBHOOK_TOKEN.
+ *
+ * O contrato de reentrega manda em todos os códigos de resposta daqui: o Asaas
+ * repete a entrega até receber 2xx. Por isso "não consegui agora" responde 500,
+ * para ganhar a repetição, e "isso nunca vai dar certo" responde 200, para não
+ * ficar recebendo o mesmo evento até o Asaas desistir sozinho.
  */
 export async function POST(request: NextRequest) {
   // The shared token is the only authentication here, so bound how fast it can
@@ -61,31 +59,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Indisponível" }, { status: 500 });
   }
 
-  // Resolve the match from our own records rather than trusting the payload's
-  // externalReference, which is only a fallback for charges created elsewhere.
-  const { data: paymentRow } = await admin
-    .from("payments")
-    .select("id, match_id, payer_id, status, kind, amount_total")
-    .eq("psp_charge_id", payment.id)
-    .maybeSingle();
-
-  const matchId = paymentRow?.match_id ?? payment.externalReference ?? null;
-
-  if (!paymentRow || paymentRow.kind !== "connection_fee" || !matchId) {
-    // Unknown or non-connection charge: ack so Asaas stops retrying.
-    return NextResponse.json({ received: true, ignored: true });
-  }
-
   if (ASAAS_FAILED_EVENTS.has(event)) {
-    await admin
+    const refunded = event === "PAYMENT_REFUNDED";
+
+    const update = admin
       .from("payments")
       .update({
-        status: event === "PAYMENT_REFUNDED" ? "refunded" : "failed",
-        ...(event === "PAYMENT_REFUNDED"
-          ? { refunded_at: new Date().toISOString() }
-          : {}),
+        status: refunded ? "refunded" : "failed",
+        ...(refunded ? { refunded_at: new Date().toISOString() } : {}),
       })
-      .eq("id", paymentRow.id);
+      .eq("psp_charge_id", payment.id)
+      .eq("kind", "connection_fee");
+
+    // Um estorno se aplica justamente a uma cobrança que foi paga. Já uma
+    // reentrega tardia de PAYMENT_OVERDUE não pode rebaixar para "failed" uma
+    // cobrança que entrou depois: o evento é velho, o pagamento é o atual.
+    const { error } = refunded
+      ? await update
+      : await update.neq("status", "succeeded");
+
+    if (error) {
+      console.error("asaas webhook: failed-event update error", error);
+      return NextResponse.json({ error: "Indisponível" }, { status: 500 });
+    }
 
     return NextResponse.json({ received: true });
   }
@@ -94,90 +90,51 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true, ignored: true });
   }
 
-  // Idempotency: Asaas sends both PAYMENT_CONFIRMED and PAYMENT_RECEIVED for
-  // the same charge, and retries on any non-2xx.
-  if (paymentRow.status === "succeeded") {
-    return NextResponse.json({ received: true, duplicate: true });
+  const outcome = await settleConnectionFee({
+    admin,
+    chargeId: payment.id,
+    // A entrega deste evento é o próprio Asaas afirmando o pagamento, então o
+    // valor do payload serve de rede se a leitura da cobrança falhar.
+    assertedByEvent: { value: payment.value ?? null },
+  });
+
+  switch (outcome.status) {
+    case "unlocked":
+      return NextResponse.json({ received: true });
+
+    case "already":
+      // Reentrega, ou o PAYMENT_CONFIRMED e o PAYMENT_RECEIVED chegando juntos.
+      return NextResponse.json({ received: true, duplicate: true });
+
+    case "unknown_charge":
+      // Cobrança que não é nossa: 200 para o Asaas parar de reentregar.
+      return NextResponse.json({ received: true, ignored: true });
+
+    case "underpaid":
+      console.error(
+        `asaas webhook: underpaid charge ${payment.id} — expected ${outcome.expected}, got ${outcome.paid}`
+      );
+      // 200: repetir não muda o valor pago.
+      return NextResponse.json({ received: true, underpaid: true });
+
+    case "unpaid":
+      // O evento diz que recebeu e a API diz que não. Ou é atraso de propagação
+      // do lado deles, ou é um evento forjado com o token vazado.
+      //
+      // 200, mesmo parecendo errado para o primeiro caso. O Asaas pausa a fila
+      // inteira de webhooks depois de algumas entregas seguidas sem 2xx, e uma
+      // pausa dessas afeta todos os matches, não só este: insistir num evento
+      // envenenado trocaria um contato preso por todos eles. O atraso de
+      // propagação já tem duas redes — o polling do paywall e o "já paguei" —
+      // e as duas releem a cobrança na API, que é a fonte que discorda aqui.
+      console.error(
+        `asaas webhook: ${event} for charge ${payment.id}, but Asaas reports status ${outcome.chargeStatus}`
+      );
+      return NextResponse.json({ received: true, inconsistent: true });
+
+    default:
+      // Falha nossa. 500 para o Asaas trazer o evento de volta.
+      console.error(`asaas webhook: settlement error (${outcome.reason})`);
+      return NextResponse.json({ error: "Indisponível" }, { status: 500 });
   }
-
-  // Confirm what was actually paid before unlocking anything.
-  //
-  // Until now this route took "PAYMENT_RECEIVED" at face value and never looked
-  // at the amount. The connection fee is the only revenue Malotex has, so an
-  // event referring to a charge worth one centavo must not open a R$ 19,90
-  // contact. Ask Asaas over the authenticated API instead of trusting the
-  // unsigned payload; if that call fails, fall back to the payload value rather
-  // than dropping a real payment on the floor.
-  const expected = Number(paymentRow.amount_total ?? 0);
-  let paidValue: number | null = null;
-
-  try {
-    const charge = await fetchCharge(payment.id);
-    paidValue = Number(charge.value);
-  } catch (err) {
-    console.error("asaas webhook: could not read charge back", err);
-    paidValue = payment.value != null ? Number(payment.value) : null;
-  }
-
-  if (paidValue == null || !Number.isFinite(paidValue)) {
-    console.error("asaas webhook: no usable amount for charge", payment.id);
-    // 500 so Asaas retries — this is our failure, not a bad event.
-    return NextResponse.json({ error: "Indisponível" }, { status: 500 });
-  }
-
-  if (expected > 0 && paidValue + AMOUNT_TOLERANCE < expected) {
-    console.error(
-      `asaas webhook: underpaid charge ${payment.id} — expected ${expected}, got ${paidValue}`
-    );
-    // 200 so Asaas stops retrying: replaying it won't change the amount.
-    return NextResponse.json({ received: true, underpaid: true });
-  }
-
-  const now = new Date().toISOString();
-
-  const { error: paymentError } = await admin
-    .from("payments")
-    .update({ status: "succeeded", paid_at: now })
-    .eq("id", paymentRow.id);
-
-  if (paymentError) {
-    console.error("asaas webhook: payment update failed", paymentError);
-    return NextResponse.json({ error: "Falha ao registrar" }, { status: 500 });
-  }
-
-  const { error: matchError } = await admin
-    .from("matches")
-    .update({ unlocked_at: now, unlocked_by: paymentRow.payer_id })
-    .eq("id", matchId)
-    .is("unlocked_at", null);
-
-  if (matchError) {
-    console.error("asaas webhook: unlock failed", matchError);
-    return NextResponse.json({ error: "Falha ao desbloquear" }, { status: 500 });
-  }
-
-  // Both parties get the contact, so both should hear about it.
-  const { data: parties } = await admin
-    .from("matches")
-    .select("trips(traveler_id), orders(requester_id)")
-    .eq("id", matchId)
-    .single();
-
-  const trip = parties?.trips as unknown as { traveler_id: string } | null;
-  const order = parties?.orders as unknown as { requester_id: string } | null;
-
-  for (const userId of [trip?.traveler_id, order?.requester_id]) {
-    if (!userId) continue;
-    await createNotification({
-      userId,
-      type: "connection_unlocked",
-      title: "Contato liberado",
-      message: "A taxa de conexão foi paga. O chat e o contato já estão liberados.",
-      relatedMatchId: matchId,
-      // No user session in a webhook — write with the service-role client.
-      client: admin,
-    });
-  }
-
-  return NextResponse.json({ received: true });
 }

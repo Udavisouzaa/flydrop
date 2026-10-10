@@ -193,6 +193,24 @@ export const ASAAS_PAID_EVENTS = new Set([
   "PAYMENT_CONFIRMED",
 ]);
 
+/**
+ * Status da própria cobrança que significam "o dinheiro entrou".
+ *
+ * É o equivalente de `ASAAS_PAID_EVENTS` para quem chega sem evento: a
+ * reconciliação (`/api/connection/reconcile`) não tem um webhook afirmando
+ * nada, então o status que o `fetchCharge` devolve é a única evidência de
+ * pagamento que ela tem.
+ *
+ * `RECEIVED_IN_CASH` entra porque é o que o Asaas grava quando a cobrança é
+ * baixada manualmente no painel — algo que só nós podemos fazer, e que numa
+ * conciliação manual precisa contar como paga.
+ */
+export const ASAAS_PAID_STATUSES = new Set([
+  "RECEIVED",
+  "CONFIRMED",
+  "RECEIVED_IN_CASH",
+]);
+
 export const ASAAS_FAILED_EVENTS = new Set([
   "PAYMENT_OVERDUE",
   "PAYMENT_DELETED",

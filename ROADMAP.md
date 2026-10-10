@@ -321,29 +321,63 @@ cheio de R$ 19,90, do seu próprio bolso, antes de qualquer usuário chegar pert
 
 **Aceite:** `matches.unlocked_at` preenchido pelo webhook, sem intervenção manual.
 
-### 2.2 Idempotência do webhook
+### 2.2 Idempotência do webhook — ✅ **CÓDIGO PRONTO em 10/10**, aceite pendente
 
-O Asaas reenvia entrega até receber 200. Hoje, um reenvio de `PAYMENT_RECEIVED` roda o
-handler de novo. Precisa ser seguro: desbloquear duas vezes não pode gerar duas
-notificações nem duas linhas em `payments`.
+O Asaas reenvia entrega até receber 200, e manda `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED`
+quase juntos para a mesma cobrança. O handler tinha um `if (status === 'succeeded')` no
+meio — uma leitura seguida de uma escrita, que duas entregas simultâneas atravessam as
+duas antes de qualquer uma gravar. O resultado era **quatro notificações em vez de duas**.
 
-**Onde:** `src/app/api/webhooks/asaas/route.ts`. O índice único
-`idx_payments_psp_charge` já existe e ajuda; falta o handler tratar a violação como
-sucesso, não como erro.
+A saída não foi travar mais cedo, foi trocar quem decide: agora quem serializa é o próprio
+`UPDATE ... WHERE unlocked_at is null`, e só a chamada cuja linha volta do banco notifica.
+As outras saem em "already".
 
-**Aceite:** disparar o mesmo evento três vezes deixa o banco idêntico ao de uma vez.
+**Segundo defeito, mais grave, que apareceu ao mexer nisso.** Aquele `return` antecipado
+tornava o estado meio-aplicado permanente: se a gravação em `payments` desse certo e a de
+`matches` falhasse logo depois, toda reentrega batia no `status === 'succeeded'` e saía
+como duplicata — **sem nunca destravar o contato**. A pessoa pagava, o banco registrava o
+pagamento, e o match ficava trancado para sempre. Agora a verificação de valor é que é
+pulada quando a cobrança já foi conferida; o destrave sempre roda, e é por isso que a
+reentrega cura esse estado em vez de mascará-lo.
 
-### 2.3 O webhook que nunca chega
+Junto foram dois ajustes menores no roteamento de eventos:
 
-Cenário real: a pessoa paga, o Asaas tenta entregar, a Vercel está fria ou fora do ar, e
-o webhook desiste. A pessoa pagou e o contato não abriu. Hoje não há saída nenhuma.
+- `PAYMENT_OVERDUE` reentregue com atraso não rebaixa mais para `failed` uma cobrança que
+  entrou depois. `PAYMENT_REFUNDED` continua se aplicando a cobrança paga — é justamente
+  esse o caso dele.
+- Evento de pagamento cuja cobrança a API do Asaas diz não estar paga agora responde
+  **200**, não 500. O Asaas pausa a fila inteira de webhooks depois de algumas entregas
+  sem 2xx, e um evento envenenado insistindo travaria todos os matches, não só o dele. O
+  2.3 é a rede que cobre o caso legítimo (atraso de propagação).
 
-Duas peças:
-- **Reconciliação**: rota que relê a cobrança no Asaas por `psp_charge_id` e concilia
-  `payments.status`. `fetchCharge()` em `src/lib/asaas.ts` já existe para isso.
-- **Botão "já paguei"** no paywall, com rate limit, que dispara essa reconciliação.
+**Onde:** a lógica saiu da rota para `src/lib/connection-settlement.ts`, porque o 2.3
+precisa exatamente da mesma sequência — conferir valor, gravar `payments`, destravar,
+notificar. Duas cópias divergiriam na primeira correção feita só de um lado, e o lado
+esquecido é o que deixa alguém pagando sem destravar.
 
-**Aceite:** com o webhook bloqueado de propósito, o botão desbloqueia o match.
+**Aceite (pendente, precisa da chave do Asaas):** disparar o mesmo evento três vezes deixa
+o banco idêntico ao de uma vez — uma linha em `payments`, duas notificações.
+
+### 2.3 O webhook que nunca chega — ✅ **CÓDIGO PRONTO em 10/10**, aceite pendente
+
+Cenário real: a pessoa paga, o Asaas tenta entregar, a Vercel está fria ou fora do ar, e o
+webhook desiste. A pessoa pagou e o contato não abriu.
+
+- **Reconciliação**: `POST /api/connection/reconcile`. Autenticada, restrita às duas partes
+  do match, com rate limit próprio (`reconcileByUser` / `reconcileByIp`). Relê no Asaas as
+  cobranças do match e liquida pela mesma função do webhook.
+- **Botão "já paguei"** no paywall, visível **inclusive antes de gerar cobrança** — quem
+  pagou, fechou a aba e voltou depois precisa conferir, não gerar outro Pix. O polling de
+  10 minutos também passou a dizer que desistiu, em vez de só parar calado.
+
+O que a rota deliberadamente **não** faz é confiar em quem chama. O pedido só diz qual
+match olhar; quem responde se houve pagamento é a API autenticada do Asaas. Apertar o botão
+sem ter pagado devolve "ainda não identificamos" quantas vezes for. E sem resposta do Asaas
+a liquidação **recusa** em vez de destravar no escuro: sem evento e sem API não sobra
+evidência nenhuma de pagamento.
+
+**Aceite (pendente, precisa da chave do Asaas):** com o webhook bloqueado de propósito, o
+botão desbloqueia o match.
 
 ### 2.4 Política e mecanismo de reembolso
 
@@ -614,8 +648,8 @@ malotex.com.br ✅ ───┬─► caixa privacidade@ ──► falta o teste
                      └─► URL de produção ✅ ──► termos coerentes ✅
 
 Aprovação Asaas ────► chaves em produção ──► Pix ponta a ponta (2.1)
-                                              ├─► idempotência (2.2)
-                                              ├─► reconciliação (2.3)
+                                              ├─► idempotência (2.2) ✅ código, falta aceite
+                                              ├─► reconciliação (2.3) ✅ código, falta aceite
                                               └─► reembolso (2.4)
 
 Migrations ✅ + deploy ✅ ──► smoke test (1.4) ──► base de todo o resto

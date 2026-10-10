@@ -51,6 +51,12 @@ export const RATE_LIMITS = {
   checkoutByUser: { limit: 8, windowSeconds: 10 * 60 },
   /** Same, per IP, so one person with many accounts is still bounded. */
   checkoutByIp: { limit: 20, windowSeconds: 10 * 60 },
+  /** "Já paguei" per user. Each press can read every charge of the match back
+   *  from Asaas, so it costs their API budget, not ours. Loose enough for
+   *  someone impatiently pressing it while the Pix settles. */
+  reconcileByUser: { limit: 10, windowSeconds: 10 * 60 },
+  /** Same, per IP. */
+  reconcileByIp: { limit: 30, windowSeconds: 10 * 60 },
   /** Webhook deliveries per IP. Generous — Asaas retries — but not unbounded,
    *  so the shared token cannot be brute-forced at speed. */
   webhookByIp: { limit: 120, windowSeconds: 60 },
